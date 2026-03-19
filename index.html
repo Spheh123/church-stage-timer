@@ -4,6 +4,7 @@
   <meta charset="UTF-8">
   <title>Stage Timer Pro</title>
   <link rel="stylesheet" href="style.css">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
 </head>
 <body>
 
@@ -37,9 +38,12 @@
 
     <hr>
 
-    <button onclick="saveProgram()">💾 Save Program</button>
-    <button onclick="loadProgram()">📂 Load Program</button>
-    <button onclick="clearProgram()">🗑 Clear Program</button>
+    <button class="big-btn start" onclick="startTimer()">▶ Start</button>
+<button class="big-btn pause" onclick="pauseTimer()">⏸ Pause</button>
+<button class="big-btn skip" onclick="nextItem()">⏭ Skip</button>
+<button class="big-btn reset" onclick="resetTimer()">🔁 Reset</button>
+
+<button onclick="window.open('display.html', '_blank')">🖥 Open Display</button>
 
   </div>
 
