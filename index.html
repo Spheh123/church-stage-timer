@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Stage Timer Pro</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<div class="container">
+
+  <!-- CONTROL PANEL -->
+  <div class="control-panel">
+    <h2>Program Setup</h2>
+
+    <input id="serviceName" placeholder="Service Name (e.g First Service)">
+
+    <input id="title" placeholder="Segment Title (e.g Worship)">
+    <input id="speaker" placeholder="Speaker Name">
+    <input id="duration" type="number" placeholder="Minutes">
+
+    <button onclick="addItem()">Add Item</button>
+
+    <ul id="programList"></ul>
+
+    <button onclick="startTimer()">Start</button>
+    <button onclick="pauseTimer()">Pause</button>
+    <button onclick="resetTimer()">Reset</button>
+
+    <h3>Live Message</h3>
+    <input id="liveMessage" placeholder="Type message to speaker">
+
+    <button onclick="showMessage()">Display Message</button>
+    <button onclick="clearMessage()">Clear Message</button>
+
+    <hr>
+
+    <button onclick="saveProgram()">💾 Save Program</button>
+    <button onclick="loadProgram()">📂 Load Program</button>
+
+  </div>
+
+  <!-- DISPLAY -->
+  <div class="display">
+
+    <div class="top-bar" id="serviceDisplay"></div>
+
+    <!-- SPEAKER TOP -->
+    <div class="header" id="speakerName"></div>
+
+    <div class="timer" id="timer">00:00</div>
+
+    <!-- SEGMENT BOTTOM -->
+    <div class="footer" id="currentTitle">Ready</div>
+
+    <div class="message" id="messageBox"></div>
+
+  </div>
+
+</div>
+
+<script src="script.js"></script>
+</body>
+</html>
