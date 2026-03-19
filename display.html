@@ -16,9 +16,9 @@
 
   <div class="timer" id="timer">00:00</div>
 
-  <div class="footer" id="currentTitle"></div>
-
   <div class="message" id="messageBox"></div>
+
+  <div class="footer" id="currentTitle"></div>
 
 </div>
 <button onclick="goFullscreen()" style="position:absolute;bottom:10px;right:10px;">
@@ -31,13 +31,28 @@ onValue(ref(db, "live"), (snapshot) => {
   const data = snapshot.val();
   if (!data) return;
 
-  document.getElementById("timer").innerText = data.time;
-  document.getElementById("speakerName").innerText = data.speaker;
-  document.getElementById("currentTitle").innerText = data.title;
-  document.getElementById("messageBox").innerText = data.message;
-  document.getElementById("serviceDisplay").innerText = data.service;
+  const timerEl = document.getElementById("timer");
+  const messageEl = document.getElementById("messageBox");
 
-  document.getElementById("timer").className = "timer " + data.color;
+  // TEXT
+  timerEl.innerText = data.time;
+  document.getElementById("speakerName").innerText = data.speaker || "";
+  document.getElementById("currentTitle").innerText = data.title || "";
+  document.getElementById("serviceDisplay").innerText = data.service || "";
+
+  messageEl.innerText = data.message || "";
+
+  // COLOR
+  timerEl.className = "timer " + (data.color || "white");
+
+  // 🔥 SMART MESSAGE BEHAVIOR
+  if (data.message && data.message.trim() !== "") {
+    timerEl.style.fontSize = "110px";
+    messageEl.style.display = "block";
+  } else {
+    timerEl.style.fontSize = "140px";
+    messageEl.style.display = "none";
+  }
 });
 </script>
 </body>
