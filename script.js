@@ -1,3 +1,5 @@
+import { db, ref, set } from "./firebase.js";
+
 let program = [];
 let currentIndex = 0;
 let timeLeft = 0;
@@ -13,30 +15,24 @@ function addItem() {
   if (!title || !duration) return alert("Fill required fields");
 
   program.push({ title, speaker, duration });
-
   renderList();
-  saveProgram();
 }
 
-// RENDER LIST
+// RENDER
 function renderList() {
   const list = document.getElementById("programList");
   list.innerHTML = "";
 
-  program.forEach((item, index) => {
+  program.forEach((item, i) => {
     const li = document.createElement("li");
-    li.innerText = `${index + 1}. ${item.title} - ${item.duration} min (${item.speaker})`;
+    li.innerText = `${i + 1}. ${item.title} (${item.speaker})`;
     list.appendChild(li);
   });
 }
 
 // START
-function startTimer() {
-  if (program.length === 0) return;
-
-  if (!isRunning && timeLeft === 0) {
-    loadItem();
-  }
+window.startTimer = function () {
+  if (!isRunning && timeLeft === 0) loadItem();
 
   isRunning = true;
 
@@ -53,44 +49,40 @@ function startTimer() {
 
     updateDisplay();
   }, 1000);
-}
+};
 
 // PAUSE
-function pauseTimer() {
+window.pauseTimer = function () {
   isRunning = false;
-}
+};
 
 // RESET
-function resetTimer() {
+window.resetTimer = function () {
   clearInterval(interval);
   currentIndex = 0;
   timeLeft = 0;
   isRunning = false;
+};
 
-  updateLiveStorage("00:00", "", "Ready", "", "white");
-}
-
-// ⏭ NEXT ITEM (SKIP)
-function nextItem() {
+// NEXT
+window.nextItem = function () {
   currentIndex++;
 
   if (currentIndex >= program.length) {
-    clearInterval(interval);
     isRunning = false;
     return;
   }
 
   loadItem();
-}
+};
 
 // LOAD ITEM
 function loadItem() {
   const item = program[currentIndex];
-
   timeLeft = item.duration * 60;
 }
 
-// UPDATE DISPLAY + SEND TO TV
+// UPDATE + SEND TO FIREBASE
 function updateDisplay() {
   const minutes = Math.floor(timeLeft / 60);
   const seconds = timeLeft % 60;
@@ -101,87 +93,27 @@ function updateDisplay() {
     String(seconds).padStart(2, "0");
 
   let color = "white";
-
-  if (timeLeft <= 120) {
-    color = "red";
-  } else if (timeLeft <= 180) {
-    color = "orange";
-  }
+  if (timeLeft <= 120) color = "red";
+  else if (timeLeft <= 180) color = "orange";
 
   const current = program[currentIndex] || {};
 
-  updateLiveStorage(
-    formatted,
-    current.speaker || "",
-    current.title || "",
-    document.getElementById("messageBox").innerText,
+  set(ref(db, "live"), {
+    time: formatted,
+    speaker: current.speaker || "",
+    title: current.title || "",
+    message: document.getElementById("messageBox").innerText,
+    service: document.getElementById("serviceName").value,
     color
-  );
+  });
 }
 
-// 💬 MESSAGE
-function showMessage() {
+// MESSAGE
+window.showMessage = function () {
   const msg = document.getElementById("liveMessage").value;
   document.getElementById("messageBox").innerText = msg;
-}
-
-function clearMessage() {
-  document.getElementById("messageBox").innerText = "";
-  document.getElementById("liveMessage").value = "";
-}
-
-// 💾 SAVE
-function saveProgram() {
-  const serviceName = document.getElementById("serviceName").value;
-
-  localStorage.setItem("program", JSON.stringify(program));
-  localStorage.setItem("serviceName", serviceName);
-}
-
-// 📂 LOAD
-function loadProgram() {
-  const saved = localStorage.getItem("program");
-  const serviceName = localStorage.getItem("serviceName");
-
-  if (saved) {
-    program = JSON.parse(saved);
-    renderList();
-  }
-
-  if (serviceName) {
-    document.getElementById("serviceName").value = serviceName;
-  }
-}
-
-// 🔴 SEND DATA TO DISPLAY
-function updateLiveStorage(time, speaker, title, message, color) {
-  const service = document.getElementById("serviceName").value;
-
-  localStorage.setItem(
-    "liveData",
-    JSON.stringify({
-      time,
-      speaker,
-      title,
-      message,
-      color,
-      service,
-    })
-  );
-}
-
-// AUTO LOAD
-window.onload = function () {
-  loadProgram();
 };
-function clearProgram() {
-  if (!confirm("Are you sure you want to delete everything?")) return;
 
-  program = [];
-  localStorage.removeItem("program");
-  localStorage.removeItem("serviceName");
-
-  renderList();
-
-  document.getElementById("serviceName").value = "";
-}
+window.clearMessage = function () {
+  document.getElementById("messageBox").innerText = "";
+};
