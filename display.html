@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Display</title>
+<link rel="stylesheet" href="style.css">
+</head>
+
+<body class="display-only">
+
+<div class="display-full">
+
+  <div class="top-bar" id="serviceDisplay"></div>
+
+  <div class="header" id="speakerName"></div>
+
+  <div class="timer" id="timer">00:00</div>
+
+  <div class="footer" id="currentTitle"></div>
+
+  <div class="message" id="messageBox"></div>
+
+</div>
+
+<script>
+function updateFromStorage() {
+  const data = JSON.parse(localStorage.getItem("liveData"));
+
+  if (!data) return;
+
+  document.getElementById("timer").innerText = data.time;
+  document.getElementById("speakerName").innerText = data.speaker;
+  document.getElementById("currentTitle").innerText = data.title;
+  document.getElementById("messageBox").innerText = data.message;
+  document.getElementById("serviceDisplay").innerText = data.service;
+
+  const timerEl = document.getElementById("timer");
+  timerEl.className = "timer " + data.color;
+}
+
+// auto refresh every second
+setInterval(updateFromStorage, 500);
+</script>
+
+</body>
+</html>

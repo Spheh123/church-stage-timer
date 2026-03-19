@@ -30,7 +30,7 @@ function renderList() {
   });
 }
 
-// START TIMER
+// START
 function startTimer() {
   if (program.length === 0) return;
 
@@ -48,15 +48,7 @@ function startTimer() {
     timeLeft--;
 
     if (timeLeft < 0) {
-      currentIndex++;
-
-      if (currentIndex >= program.length) {
-        clearInterval(interval);
-        isRunning = false;
-        return;
-      }
-
-      loadItem();
+      nextItem();
     }
 
     updateDisplay();
@@ -75,9 +67,20 @@ function resetTimer() {
   timeLeft = 0;
   isRunning = false;
 
-  document.getElementById("timer").innerText = "00:00";
-  document.getElementById("currentTitle").innerText = "Ready";
-  document.getElementById("speakerName").innerText = "";
+  updateLiveStorage("00:00", "", "Ready", "", "white");
+}
+
+// ⏭ NEXT ITEM (SKIP)
+function nextItem() {
+  currentIndex++;
+
+  if (currentIndex >= program.length) {
+    clearInterval(interval);
+    isRunning = false;
+    return;
+  }
+
+  loadItem();
 }
 
 // LOAD ITEM
@@ -85,14 +88,9 @@ function loadItem() {
   const item = program[currentIndex];
 
   timeLeft = item.duration * 60;
-
-  document.getElementById("currentTitle").innerText = item.title;
-  document.getElementById("speakerName").innerText = item.speaker;
-  document.getElementById("serviceDisplay").innerText =
-    document.getElementById("serviceName").value;
 }
 
-// UPDATE DISPLAY
+// UPDATE DISPLAY + SEND TO TV
 function updateDisplay() {
   const minutes = Math.floor(timeLeft / 60);
   const seconds = timeLeft % 60;
@@ -102,20 +100,26 @@ function updateDisplay() {
     ":" +
     String(seconds).padStart(2, "0");
 
-  const timerEl = document.getElementById("timer");
-  timerEl.innerText = formatted;
+  let color = "white";
 
-  // COLOR RULES
-  if (timeLeft > 180) {
-    timerEl.className = "timer white";
-  } else if (timeLeft > 120) {
-    timerEl.className = "timer orange";
-  } else {
-    timerEl.className = "timer red";
+  if (timeLeft <= 120) {
+    color = "red";
+  } else if (timeLeft <= 180) {
+    color = "orange";
   }
+
+  const current = program[currentIndex] || {};
+
+  updateLiveStorage(
+    formatted,
+    current.speaker || "",
+    current.title || "",
+    document.getElementById("messageBox").innerText,
+    color
+  );
 }
 
-// MESSAGE
+// 💬 MESSAGE
 function showMessage() {
   const msg = document.getElementById("liveMessage").value;
   document.getElementById("messageBox").innerText = msg;
@@ -126,7 +130,7 @@ function clearMessage() {
   document.getElementById("liveMessage").value = "";
 }
 
-// 💾 SAVE PROGRAM
+// 💾 SAVE
 function saveProgram() {
   const serviceName = document.getElementById("serviceName").value;
 
@@ -134,7 +138,7 @@ function saveProgram() {
   localStorage.setItem("serviceName", serviceName);
 }
 
-// 📂 LOAD PROGRAM
+// 📂 LOAD
 function loadProgram() {
   const saved = localStorage.getItem("program");
   const serviceName = localStorage.getItem("serviceName");
@@ -149,7 +153,24 @@ function loadProgram() {
   }
 }
 
-// AUTO LOAD ON OPEN
+// 🔴 SEND DATA TO DISPLAY
+function updateLiveStorage(time, speaker, title, message, color) {
+  const service = document.getElementById("serviceName").value;
+
+  localStorage.setItem(
+    "liveData",
+    JSON.stringify({
+      time,
+      speaker,
+      title,
+      message,
+      color,
+      service,
+    })
+  );
+}
+
+// AUTO LOAD
 window.onload = function () {
   loadProgram();
 };
