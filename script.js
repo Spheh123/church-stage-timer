@@ -7,7 +7,7 @@ let interval = null;
 let isRunning = false;
 
 // ADD ITEM
-function addItem() {
+window.addItem = function () {
   const title = document.getElementById("title").value;
   const speaker = document.getElementById("speaker").value;
   const duration = parseInt(document.getElementById("duration").value);
