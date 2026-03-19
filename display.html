@@ -21,9 +21,7 @@
   <div class="footer" id="currentTitle"></div>
 
 </div>
-<button onclick="goFullscreen()" style="position:absolute;bottom:10px;right:10px;">
-  Fullscreen
-</button>
+<button id="fullscreenBtn" class="fullscreen-btn">⛶</button>
 <script type="module">
 import { db, ref, onValue } from "./firebase.js";
 
@@ -52,6 +50,15 @@ onValue(ref(db, "live"), (snapshot) => {
   } else {
     timerEl.style.fontSize = "140px";
     messageEl.style.display = "none";
+  }
+});
+const btn = document.getElementById("fullscreenBtn");
+
+btn.addEventListener("click", () => {
+  if (!document.fullscreenElement) {
+    document.documentElement.requestFullscreen();
+  } else {
+    document.exitFullscreen();
   }
 });
 </script>
