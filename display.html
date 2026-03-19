@@ -42,6 +42,9 @@ function updateFromStorage() {
 
 // auto refresh every second
 setInterval(updateFromStorage, 500);
+function goFullscreen() {
+  document.documentElement.requestFullscreen();
+}
 </script>
 
 </body>
