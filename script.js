@@ -1,4 +1,4 @@
-import { db, ref, set } from "./firebase.js";
+import { db, ref, set, onValue } from "./firebase.js";
 
 let program = [];
 let currentIndex = 0;
@@ -12,27 +12,35 @@ window.addItem = function () {
   const speaker = document.getElementById("speaker").value;
   const duration = parseInt(document.getElementById("duration").value);
 
-  if (!title || !duration) return alert("Fill required fields");
+  if (!title || !duration) {
+    alert("Fill required fields");
+    return;
+  }
 
   program.push({ title, speaker, duration });
-  renderList();
-}
 
-// RENDER
-window.renderList = function () {
+  renderList();
+};
+
+// RENDER LIST
+function renderList() {
   const list = document.getElementById("programList");
   list.innerHTML = "";
 
-  program.forEach((item, i) => {
+  program.forEach((item, index) => {
     const li = document.createElement("li");
-    li.innerText = `${i + 1}. ${item.title} (${item.speaker})`;
+    li.innerText = `${index + 1}. ${item.title} (${item.speaker}) - ${item.duration} min`;
     list.appendChild(li);
   });
 }
 
 // START
 window.startTimer = function () {
-  if (!isRunning && timeLeft === 0) loadItem();
+  if (program.length === 0) return;
+
+  if (!isRunning && timeLeft === 0) {
+    loadItem();
+  }
 
   isRunning = true;
 
@@ -82,7 +90,7 @@ function loadItem() {
   timeLeft = item.duration * 60;
 }
 
-// UPDATE + SEND TO FIREBASE
+// UPDATE DISPLAY
 function updateDisplay() {
   const minutes = Math.floor(timeLeft / 60);
   const seconds = timeLeft % 60;
@@ -102,8 +110,8 @@ function updateDisplay() {
     time: formatted,
     speaker: current.speaker || "",
     title: current.title || "",
-    message: document.getElementById("messageBox").innerText,
-    service: document.getElementById("serviceName").value,
+    message: document.getElementById("messageBox")?.innerText || "",
+    service: document.getElementById("serviceName")?.value || "",
     color
   });
 }
@@ -117,9 +125,8 @@ window.showMessage = function () {
 window.clearMessage = function () {
   document.getElementById("messageBox").innerText = "";
 };
-import { db, ref, set, onValue } from "./firebase.js";
 
-// 💾 SAVE PROGRAM TO FIREBASE
+// 💾 SAVE
 window.saveProgram = function () {
   const serviceName = document.getElementById("serviceName").value;
 
@@ -128,14 +135,17 @@ window.saveProgram = function () {
     serviceName
   });
 
-  alert("Program saved!");
+  alert("Saved!");
 };
 
-// 📂 LOAD PROGRAM FROM FIREBASE
+// 📂 LOAD
 window.loadProgram = function () {
   onValue(ref(db, "program"), (snapshot) => {
     const data = snapshot.val();
-    if (!data) return alert("No saved program");
+    if (!data) {
+      alert("No saved program");
+      return;
+    }
 
     program = data.program || [];
     document.getElementById("serviceName").value = data.serviceName || "";
@@ -144,7 +154,7 @@ window.loadProgram = function () {
   }, { onlyOnce: true });
 };
 
-// 🗑 CLEAR PROGRAM
+// 🗑 CLEAR
 window.clearProgram = function () {
   if (!confirm("Delete everything?")) return;
 
