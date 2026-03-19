@@ -174,3 +174,14 @@ function updateLiveStorage(time, speaker, title, message, color) {
 window.onload = function () {
   loadProgram();
 };
+function clearProgram() {
+  if (!confirm("Are you sure you want to delete everything?")) return;
+
+  program = [];
+  localStorage.removeItem("program");
+  localStorage.removeItem("serviceName");
+
+  renderList();
+
+  document.getElementById("serviceName").value = "";
+}
