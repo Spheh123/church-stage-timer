@@ -19,7 +19,7 @@ window.addItem = function () {
 }
 
 // RENDER
-function renderList() {
+window.renderList = function () {
   const list = document.getElementById("programList");
   list.innerHTML = "";
 
@@ -116,4 +116,41 @@ window.showMessage = function () {
 
 window.clearMessage = function () {
   document.getElementById("messageBox").innerText = "";
+};
+import { db, ref, set, onValue } from "./firebase.js";
+
+// 💾 SAVE PROGRAM TO FIREBASE
+window.saveProgram = function () {
+  const serviceName = document.getElementById("serviceName").value;
+
+  set(ref(db, "program"), {
+    program,
+    serviceName
+  });
+
+  alert("Program saved!");
+};
+
+// 📂 LOAD PROGRAM FROM FIREBASE
+window.loadProgram = function () {
+  onValue(ref(db, "program"), (snapshot) => {
+    const data = snapshot.val();
+    if (!data) return alert("No saved program");
+
+    program = data.program || [];
+    document.getElementById("serviceName").value = data.serviceName || "";
+
+    renderList();
+  }, { onlyOnce: true });
+};
+
+// 🗑 CLEAR PROGRAM
+window.clearProgram = function () {
+  if (!confirm("Delete everything?")) return;
+
+  program = [];
+  set(ref(db, "program"), null);
+
+  renderList();
+  document.getElementById("serviceName").value = "";
 };
