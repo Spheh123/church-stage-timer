@@ -479,6 +479,30 @@ input:focus {
   max-width: 900px;
 }
 
+.signature {
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  font-size: 0.76rem;
+  color: rgba(247, 249, 252, 0.58);
+}
+
+.signature span {
+  color: var(--gold);
+}
+
+.signature-panel {
+  position: relative;
+  z-index: 1;
+  margin-top: 8px;
+  text-align: center;
+}
+
+.signature-stage,
+.signature-display {
+  margin-top: 26px;
+  text-align: center;
+}
+
 .display-only .message {
   display: none;
 }
