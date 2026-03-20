@@ -46,6 +46,9 @@ window.startTimer = function () {
 
   clearInterval(interval);
 
+  // 🔥 PUSH IMMEDIATE UPDATE
+  pushUpdate();
+
   interval = setInterval(() => {
     if (!isRunning) return;
 
