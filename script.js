@@ -62,6 +62,8 @@ window.startTimer = function () {
 // PAUSE
 window.pauseTimer = function () {
   isRunning = false;
+
+  pushUpdate();
 };
 
 // RESET
@@ -70,6 +72,8 @@ window.resetTimer = function () {
   currentIndex = 0;
   timeLeft = 0;
   isRunning = false;
+
+  pushUpdate();
 };
 
 // NEXT
@@ -82,8 +86,8 @@ window.nextItem = function () {
   }
 
   loadItem();
+  pushUpdate();
 };
-
 // LOAD ITEM
 function loadItem() {
   const item = program[currentIndex];
@@ -120,10 +124,13 @@ function updateDisplay() {
 window.showMessage = function () {
   const msg = document.getElementById("liveMessage").value;
   document.getElementById("messageBox").innerText = msg;
-};
 
+  pushUpdate();
+};
 window.clearMessage = function () {
   document.getElementById("messageBox").innerText = "";
+
+  pushUpdate();
 };
 
 // 💾 SAVE
@@ -164,3 +171,27 @@ window.clearProgram = function () {
   renderList();
   document.getElementById("serviceName").value = "";
 };
+function pushUpdate() {
+  const minutes = Math.floor(timeLeft / 60);
+  const seconds = timeLeft % 60;
+
+  const formatted =
+    String(minutes).padStart(2, "0") +
+    ":" +
+    String(seconds).padStart(2, "0");
+
+  let color = "white";
+  if (timeLeft <= 120) color = "red";
+  else if (timeLeft <= 180) color = "orange";
+
+  const current = program[currentIndex] || {};
+
+  set(ref(db, "live"), {
+    time: formatted,
+    speaker: current.speaker || "",
+    title: current.title || "",
+    message: document.getElementById("messageBox")?.innerText || "",
+    service: document.getElementById("serviceName")?.value || "",
+    color
+  });
+}
