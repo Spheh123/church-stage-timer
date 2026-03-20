@@ -2,72 +2,135 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Stage Timer Pro</title>
-  <link rel="stylesheet" href="style.css">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Stage Timer Pro</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;700&family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
 </head>
 <body>
+  <div class="app-shell">
+    <aside class="control-panel">
+      <div class="panel-glow panel-glow-a"></div>
+      <div class="panel-glow panel-glow-b"></div>
 
-<div class="container">
+      <section class="hero-card">
+        <div>
+          <p class="eyebrow">Live Production Console</p>
+          <h1>Stage Timer Pro</h1>
+          <p class="hero-copy">Built for calm, confident control when the room is full and every second matters.</p>
+        </div>
 
-  <!-- CONTROL PANEL -->
-  <div class="control-panel">
-    <h2>Program Setup</h2>
+        <button id="lockToggle" class="lock-toggle" type="button">
+          <span id="lockIcon" aria-hidden="true">Unlock</span>
+          <span id="lockText">Lock Controls</span>
+        </button>
+      </section>
 
-    <input id="serviceName" placeholder="Service Name (e.g First Service)">
+      <section class="status-grid">
+        <article class="status-card">
+          <span class="status-label">Program Items</span>
+          <strong id="itemCount">0</strong>
+        </article>
+        <article class="status-card">
+          <span class="status-label">Current Segment</span>
+          <strong id="currentSegmentLabel">Ready</strong>
+        </article>
+        <article class="status-card status-card-lock">
+          <span class="status-label">Safety Mode</span>
+          <strong id="lockBadge">Unlocked</strong>
+        </article>
+      </section>
 
-    <input id="title" placeholder="Segment Title (e.g Worship)">
-    <input id="speaker" placeholder="Speaker Name">
-    <input id="duration" type="number" placeholder="Minutes">
+      <section class="panel-card">
+        <div class="section-heading">
+          <h2>Service Setup</h2>
+          <p>Build the running order and push it live in seconds.</p>
+        </div>
 
-    <button onclick="addItem()">Add Item</button>
+        <label class="field">
+          <span>Service Name</span>
+          <input id="serviceName" placeholder="e.g. First Service">
+        </label>
 
-    <ul id="programList"></ul>
+        <div class="input-grid">
+          <label class="field">
+            <span>Segment Title</span>
+            <input id="title" placeholder="e.g. Worship">
+          </label>
+          <label class="field">
+            <span>Speaker Name</span>
+            <input id="speaker" placeholder="e.g. Pastor John">
+          </label>
+          <label class="field">
+            <span>Duration (Minutes)</span>
+            <input id="duration" type="number" min="1" placeholder="15">
+          </label>
+        </div>
 
-    <button onclick="startTimer()">Start</button>
-    <button onclick="pauseTimer()">Pause</button>
-    <button onclick="resetTimer()">Reset</button>
-    <button onclick="nextItem()">⏭ Skip to Next</button>
-<button onclick="window.open('display.html', '_blank')">🖥 Open Display Screen</button>
+        <button class="action-btn action-btn-secondary" type="button" data-lockable="true" onclick="addItem()">Add Program Item</button>
 
-    <h3>Live Message</h3>
-    <input id="liveMessage" placeholder="Type message to speaker">
+        <ul id="programList" class="program-list"></ul>
+      </section>
 
-    <button onclick="showMessage()">Display Message</button>
-    <button onclick="clearMessage()">Clear Message</button>
+      <section class="panel-card">
+        <div class="section-heading">
+          <h2>Live Controls</h2>
+          <p>Large touch targets for fast and deliberate operation.</p>
+        </div>
 
-    <hr>
+        <div class="control-grid">
+          <button class="big-btn start" type="button" data-lockable="true" onclick="startTimer()">Start</button>
+          <button class="big-btn pause" type="button" data-lockable="true" onclick="pauseTimer()">Pause</button>
+          <button class="big-btn skip" type="button" data-lockable="true" onclick="nextItem()">Skip Next</button>
+          <button class="big-btn reset" type="button" data-lockable="true" onclick="resetTimer()">Reset</button>
+        </div>
 
-    <button class="big-btn start" onclick="startTimer()">▶ Start</button>
-<button class="big-btn pause" onclick="pauseTimer()">⏸ Pause</button>
-<button class="big-btn skip" onclick="nextItem()">⏭ Skip</button>
-<button class="big-btn reset" onclick="resetTimer()">🔁 Reset</button>
-<button onclick="saveProgram()">💾 Save Program</button>
-<button onclick="loadProgram()">📂 Load Program</button>
-<button onclick="clearProgram()">🗑 Clear Program</button>
-<button onclick="window.open('display.html', '_blank')">🖥 Open Display</button>
+        <div class="secondary-actions">
+          <button class="action-btn" type="button" data-lockable="true" onclick="saveProgram()">Save Program</button>
+          <button class="action-btn" type="button" data-lockable="true" onclick="loadProgram()">Load Program</button>
+          <button class="action-btn action-btn-danger" type="button" data-lockable="true" onclick="clearProgram()">Clear Program</button>
+          <button class="action-btn" type="button" onclick="window.open('display.html', '_blank')">Open Display Screen</button>
+        </div>
+      </section>
 
+      <section class="panel-card">
+        <div class="section-heading">
+          <h2>Speaker Message</h2>
+          <p>Send a discreet live prompt to the stage display.</p>
+        </div>
+
+        <label class="field">
+          <span>Live Message</span>
+          <input id="liveMessage" placeholder="Type a message for the speaker">
+        </label>
+
+        <div class="message-actions">
+          <button class="action-btn" type="button" data-lockable="true" onclick="showMessage()">Display Message</button>
+          <button class="action-btn action-btn-secondary" type="button" data-lockable="true" onclick="clearMessage()">Clear Message</button>
+        </div>
+      </section>
+    </aside>
+
+    <main class="display-stage">
+      <div class="stage-backdrop"></div>
+      <div class="display">
+        <div class="display-chrome">
+          <div class="top-bar" id="serviceDisplay"></div>
+          <div class="preview-badge">Audience Display Preview</div>
+        </div>
+
+        <div class="speaker-pill" id="speakerName"></div>
+        <div class="timer-card">
+          <div class="timer timer-preview" id="timer">00:00</div>
+        </div>
+        <div class="footer" id="currentTitle">Ready</div>
+        <div class="message" id="messageBox"></div>
+      </div>
+    </main>
   </div>
 
-  <!-- DISPLAY -->
-  <div class="display">
-
-    <div class="top-bar" id="serviceDisplay"></div>
-
-    <!-- SPEAKER TOP -->
-    <div class="header" id="speakerName"></div>
-
-    <div class="timer" id="timer">00:00</div>
-
-    <!-- SEGMENT BOTTOM -->
-    <div class="footer" id="currentTitle">Ready</div>
-
-    <div class="message" id="messageBox"></div>
-
-  </div>
-
-</div>
-
-<script type="module" src="script.js"></script>
+  <script type="module" src="script.js"></script>
 </body>
 </html>

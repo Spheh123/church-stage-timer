@@ -5,36 +5,78 @@ let currentIndex = 0;
 let timeLeft = 0;
 let interval = null;
 let isRunning = false;
+let controlsLocked = localStorage.getItem("stageTimerLocked") === "true";
 
-// ADD ITEM
+const elements = {
+  serviceName: document.getElementById("serviceName"),
+  title: document.getElementById("title"),
+  speaker: document.getElementById("speaker"),
+  duration: document.getElementById("duration"),
+  liveMessage: document.getElementById("liveMessage"),
+  programList: document.getElementById("programList"),
+  timer: document.getElementById("timer"),
+  speakerName: document.getElementById("speakerName"),
+  currentTitle: document.getElementById("currentTitle"),
+  serviceDisplay: document.getElementById("serviceDisplay"),
+  messageBox: document.getElementById("messageBox"),
+  itemCount: document.getElementById("itemCount"),
+  currentSegmentLabel: document.getElementById("currentSegmentLabel"),
+  lockToggle: document.getElementById("lockToggle"),
+  lockText: document.getElementById("lockText"),
+  lockIcon: document.getElementById("lockIcon"),
+  lockBadge: document.getElementById("lockBadge")
+};
+
+const lockableButtons = Array.from(document.querySelectorAll("[data-lockable='true']"));
+
+elements.lockToggle?.addEventListener("click", () => {
+  setLockedState(!controlsLocked, { broadcast: true });
+});
+
+onValue(ref(db, "controlState"), (snapshot) => {
+  const data = snapshot.val();
+  if (!data || typeof data.locked !== "boolean") return;
+
+  if (data.locked !== controlsLocked) {
+    setLockedState(data.locked, { broadcast: false });
+  }
+});
+
+setLockedState(controlsLocked, { broadcast: false });
+refreshUi();
+pushUpdate();
+
+elements.serviceName?.addEventListener("input", () => {
+  refreshUi();
+  pushUpdate();
+});
+
+elements.liveMessage?.addEventListener("keydown", (event) => {
+  if (event.key === "Enter" && !controlsLocked) {
+    window.showMessage();
+  }
+});
+
 window.addItem = function () {
-  const title = document.getElementById("title").value;
-  const speaker = document.getElementById("speaker").value;
-  const duration = parseInt(document.getElementById("duration").value);
+  const title = elements.title.value.trim();
+  const speaker = elements.speaker.value.trim();
+  const duration = parseInt(elements.duration.value, 10);
 
   if (!title || !duration) {
-    alert("Fill required fields");
+    alert("Add at least a segment title and duration.");
     return;
   }
 
   program.push({ title, speaker, duration });
 
+  elements.title.value = "";
+  elements.speaker.value = "";
+  elements.duration.value = "";
+
   renderList();
+  refreshUi();
 };
 
-// RENDER LIST
-function renderList() {
-  const list = document.getElementById("programList");
-  list.innerHTML = "";
-
-  program.forEach((item, index) => {
-    const li = document.createElement("li");
-    li.innerText = `${index + 1}. ${item.title} (${item.speaker}) - ${item.duration} min`;
-    list.appendChild(li);
-  });
-}
-
-// START
 window.startTimer = function () {
   if (program.length === 0) return;
 
@@ -43,158 +85,241 @@ window.startTimer = function () {
   }
 
   isRunning = true;
-
   clearInterval(interval);
-
-  // 🔥 PUSH IMMEDIATE UPDATE
   pushUpdate();
 
   interval = setInterval(() => {
     if (!isRunning) return;
 
-    timeLeft--;
+    timeLeft -= 1;
 
     if (timeLeft < 0) {
       nextItem();
+      return;
     }
 
-    updateDisplay();
+    pushUpdate();
   }, 1000);
+
+  refreshUi();
 };
 
-// PAUSE
 window.pauseTimer = function () {
   isRunning = false;
-
+  refreshUi();
   pushUpdate();
 };
 
-// RESET
 window.resetTimer = function () {
   clearInterval(interval);
   currentIndex = 0;
   timeLeft = 0;
   isRunning = false;
-
+  refreshUi();
   pushUpdate();
 };
 
-// NEXT
 window.nextItem = function () {
-  currentIndex++;
+  currentIndex += 1;
 
   if (currentIndex >= program.length) {
+    clearInterval(interval);
+    currentIndex = program.length;
+    timeLeft = 0;
     isRunning = false;
+    refreshUi();
+    pushUpdate();
     return;
   }
 
   loadItem();
+  refreshUi();
   pushUpdate();
 };
-// LOAD ITEM
-function loadItem() {
-  const item = program[currentIndex];
-  timeLeft = item.duration * 60;
-}
 
-// UPDATE DISPLAY
-function updateDisplay() {
-  const minutes = Math.floor(timeLeft / 60);
-  const seconds = timeLeft % 60;
-
-  const formatted =
-    String(minutes).padStart(2, "0") +
-    ":" +
-    String(seconds).padStart(2, "0");
-
-  let color = "white";
-  if (timeLeft <= 120) color = "red";
-  else if (timeLeft <= 180) color = "orange";
-
-  const current = program[currentIndex] || {};
-
-  set(ref(db, "live"), {
-    time: formatted,
-    speaker: current.speaker || "",
-    title: current.title || "",
-    message: document.getElementById("messageBox")?.innerText || "",
-    service: document.getElementById("serviceName")?.value || "",
-    color
-  });
-}
-
-// MESSAGE
 window.showMessage = function () {
-  const msg = document.getElementById("liveMessage").value;
-  document.getElementById("messageBox").innerText = msg;
-
+  elements.messageBox.innerText = elements.liveMessage.value.trim();
   pushUpdate();
 };
+
 window.clearMessage = function () {
-  document.getElementById("messageBox").innerText = "";
-
+  elements.liveMessage.value = "";
+  elements.messageBox.innerText = "";
   pushUpdate();
 };
 
-// 💾 SAVE
 window.saveProgram = function () {
-  const serviceName = document.getElementById("serviceName").value;
+  const serviceName = elements.serviceName.value.trim();
 
   set(ref(db, "program"), {
     program,
     serviceName
   });
 
-  alert("Saved!");
+  alert("Program saved.");
 };
 
-// 📂 LOAD
 window.loadProgram = function () {
   onValue(ref(db, "program"), (snapshot) => {
     const data = snapshot.val();
     if (!data) {
-      alert("No saved program");
+      alert("No saved program found.");
       return;
     }
 
     program = data.program || [];
-    document.getElementById("serviceName").value = data.serviceName || "";
+    elements.serviceName.value = data.serviceName || "";
+    currentIndex = 0;
+    timeLeft = 0;
+    isRunning = false;
 
     renderList();
+    refreshUi();
+    pushUpdate();
   }, { onlyOnce: true });
 };
 
-// 🗑 CLEAR
 window.clearProgram = function () {
-  if (!confirm("Delete everything?")) return;
+  if (!confirm("Delete the full saved program?")) return;
 
+  clearInterval(interval);
   program = [];
+  currentIndex = 0;
+  timeLeft = 0;
+  isRunning = false;
+
   set(ref(db, "program"), null);
 
   renderList();
-  document.getElementById("serviceName").value = "";
+  refreshUi();
+  pushUpdate();
 };
-function pushUpdate() {
-  const minutes = Math.floor(timeLeft / 60);
-  const seconds = timeLeft % 60;
 
-  const formatted =
-    String(minutes).padStart(2, "0") +
-    ":" +
-    String(seconds).padStart(2, "0");
+function renderList() {
+  elements.programList.innerHTML = "";
+
+  if (program.length === 0) {
+    const emptyState = document.createElement("li");
+    emptyState.className = "program-empty";
+    emptyState.innerText = "No segments yet. Add your first item to build the service flow.";
+    elements.programList.appendChild(emptyState);
+    return;
+  }
+
+  program.forEach((item, index) => {
+    const li = document.createElement("li");
+    li.className = "program-item";
+
+    if (index === currentIndex && (timeLeft > 0 || isRunning)) {
+      li.classList.add("active");
+    }
+
+    const indexBadge = document.createElement("span");
+    indexBadge.className = "program-index";
+    indexBadge.innerText = String(index + 1);
+
+    const copy = document.createElement("div");
+    copy.className = "program-copy";
+
+    const title = document.createElement("strong");
+    title.innerText = item.title;
+
+    const speaker = document.createElement("span");
+    speaker.innerText = item.speaker || "No speaker assigned";
+
+    copy.append(title, speaker);
+
+    const duration = document.createElement("span");
+    duration.className = "program-duration";
+    duration.innerText = `${item.duration} min`;
+
+    li.append(indexBadge, copy, duration);
+
+    elements.programList.appendChild(li);
+  });
+}
+
+function loadItem() {
+  const item = program[currentIndex];
+
+  if (!item) {
+    timeLeft = 0;
+    return;
+  }
+
+  timeLeft = item.duration * 60;
+}
+
+function setLockedState(locked, options = {}) {
+  const { broadcast = false } = options;
+
+  controlsLocked = locked;
+  localStorage.setItem("stageTimerLocked", String(locked));
+  document.body.classList.toggle("controls-locked", locked);
+
+  lockableButtons.forEach((button) => {
+    button.disabled = locked;
+  });
+
+  if (elements.lockText) {
+    elements.lockText.innerText = locked ? "Unlock Controls" : "Lock Controls";
+  }
+
+  if (elements.lockIcon) {
+    elements.lockIcon.innerText = locked ? "Locked" : "Unlock";
+  }
+
+  if (elements.lockBadge) {
+    elements.lockBadge.innerText = locked ? "Locked" : "Unlocked";
+  }
+
+  if (broadcast) {
+    set(ref(db, "controlState"), { locked });
+  }
+}
+
+function getTimerState() {
+  const safeTimeLeft = Math.max(timeLeft, 0);
+  const minutes = Math.floor(safeTimeLeft / 60);
+  const seconds = safeTimeLeft % 60;
+  const formatted = `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
 
   let color = "white";
-  if (timeLeft <= 120) color = "red";
-  else if (timeLeft <= 180) color = "orange";
+  if (safeTimeLeft <= 120 && safeTimeLeft > 0) color = "red";
+  else if (safeTimeLeft <= 180 && safeTimeLeft > 0) color = "orange";
 
+  return { formatted, color };
+}
+
+function refreshUi() {
   const current = program[currentIndex] || {};
+  const { formatted, color } = getTimerState();
+
+  elements.itemCount.innerText = String(program.length);
+  elements.currentSegmentLabel.innerText = current.title || "Ready";
+  elements.speakerName.innerText = current.speaker || "Awaiting Speaker";
+  elements.currentTitle.innerText = current.title || "Ready";
+  elements.serviceDisplay.innerText = elements.serviceName.value.trim() || "Service Not Named";
+  elements.timer.innerText = formatted;
+  elements.timer.className = `timer timer-preview ${color}`;
+
+  renderList();
+}
+
+function pushUpdate() {
+  const current = program[currentIndex] || {};
+  const { formatted, color } = getTimerState();
+  const message = elements.messageBox?.innerText || "";
+  const service = elements.serviceName?.value.trim() || "";
+
+  refreshUi();
 
   set(ref(db, "live"), {
     time: formatted,
     speaker: current.speaker || "",
     title: current.title || "",
-    message: document.getElementById("messageBox")?.innerText || "",
-    service: document.getElementById("serviceName")?.value || "",
+    message,
+    service,
     color
   });
 }

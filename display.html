@@ -1,66 +1,68 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<title>Display</title>
-<link rel="stylesheet" href="style.css">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Stage Timer Display</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;700&family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
 </head>
-
 <body class="display-only">
+  <div class="display-full">
+    <div class="display-orb orb-a"></div>
+    <div class="display-orb orb-b"></div>
 
-<div class="display-full">
+    <div class="display-head">
+      <div class="top-bar" id="serviceDisplay"></div>
+      <button id="fullscreenBtn" class="fullscreen-btn" type="button">Fullscreen</button>
+    </div>
 
-  <div class="top-bar" id="serviceDisplay"></div>
+    <div class="speaker-pill" id="speakerName"></div>
 
-  <div class="header" id="speakerName"></div>
+    <div class="timer-card timer-card-live">
+      <div class="timer" id="timer">00:00</div>
+    </div>
 
-  <div class="timer" id="timer">00:00</div>
+    <div class="message" id="messageBox"></div>
+    <div class="footer" id="currentTitle"></div>
+  </div>
 
-  <div class="message" id="messageBox"></div>
+  <script type="module">
+    import { db, ref, onValue } from "./firebase.js";
 
-  <div class="footer" id="currentTitle"></div>
+    onValue(ref(db, "live"), (snapshot) => {
+      const data = snapshot.val();
+      if (!data) return;
 
-</div>
-<button id="fullscreenBtn" class="fullscreen-btn">⛶</button>
-<script type="module">
-import { db, ref, onValue } from "./firebase.js";
+      const timerEl = document.getElementById("timer");
+      const messageEl = document.getElementById("messageBox");
 
-onValue(ref(db, "live"), (snapshot) => {
-  const data = snapshot.val();
-  if (!data) return;
+      timerEl.innerText = data.time || "00:00";
+      document.getElementById("speakerName").innerText = data.speaker || "";
+      document.getElementById("currentTitle").innerText = data.title || "";
+      document.getElementById("serviceDisplay").innerText = data.service || "";
+      messageEl.innerText = data.message || "";
 
-  const timerEl = document.getElementById("timer");
-  const messageEl = document.getElementById("messageBox");
+      timerEl.className = "timer " + (data.color || "white");
+      document.body.setAttribute("data-timer-color", data.color || "white");
 
-  // TEXT
-  timerEl.innerText = data.time;
-  document.getElementById("speakerName").innerText = data.speaker || "";
-  document.getElementById("currentTitle").innerText = data.title || "";
-  document.getElementById("serviceDisplay").innerText = data.service || "";
+      if (data.message && data.message.trim() !== "") {
+        document.body.classList.add("message-visible");
+      } else {
+        document.body.classList.remove("message-visible");
+      }
+    });
 
-  messageEl.innerText = data.message || "";
-
-  // COLOR
-  timerEl.className = "timer " + (data.color || "white");
-
-  // 🔥 SMART MESSAGE BEHAVIOR
-  if (data.message && data.message.trim() !== "") {
-    timerEl.style.fontSize = "110px";
-    messageEl.style.display = "block";
-  } else {
-    timerEl.style.fontSize = "140px";
-    messageEl.style.display = "none";
-  }
-});
-const btn = document.getElementById("fullscreenBtn");
-
-btn.addEventListener("click", () => {
-  if (!document.fullscreenElement) {
-    document.documentElement.requestFullscreen();
-  } else {
-    document.exitFullscreen();
-  }
-});
-</script>
+    const btn = document.getElementById("fullscreenBtn");
+    btn.addEventListener("click", async () => {
+      if (!document.fullscreenElement) {
+        await document.documentElement.requestFullscreen();
+      } else {
+        await document.exitFullscreen();
+      }
+    });
+  </script>
 </body>
 </html>
