@@ -438,6 +438,15 @@ input:focus {
   color: var(--text);
 }
 
+.display-focus {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  text-align: center;
+}
+
 .timer-card {
   position: relative;
   display: grid;
@@ -451,6 +460,7 @@ input:focus {
 
 .timer-card-live {
   min-height: 360px;
+  width: min(980px, 100%);
 }
 
 .timer {
@@ -470,6 +480,8 @@ input:focus {
   margin-top: 24px;
   font-size: clamp(1.4rem, 2.8vw, 2rem);
   color: var(--text);
+  text-align: center;
+  font-weight: 700;
 }
 
 .message {
@@ -477,6 +489,7 @@ input:focus {
   font-size: clamp(1.3rem, 2.8vw, 2.2rem);
   line-height: 1.35;
   max-width: 900px;
+  text-align: center;
 }
 
 .signature {
@@ -507,9 +520,57 @@ input:focus {
   display: none;
 }
 
+.display-only .display-head {
+  width: 100%;
+  align-items: flex-start;
+}
+
+.display-only .display-focus {
+  width: 100%;
+}
+
+.display-only .speaker-pill {
+  align-self: center;
+  justify-content: center;
+  margin-bottom: 28px;
+  padding: 16px 28px;
+  font-size: clamp(1.5rem, 3vw, 2.4rem);
+  font-weight: 700;
+  text-align: center;
+  max-width: min(1100px, 92%);
+}
+
+.display-only .footer {
+  margin-top: 26px;
+  font-size: clamp(2rem, 4vw, 3.4rem);
+  max-width: min(1100px, 94%);
+}
+
+.display-only .message {
+  margin-top: 28px;
+  padding: 22px 30px;
+  border-radius: 28px;
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.14), rgba(243, 201, 105, 0.12));
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  font-family: "Space Grotesk", "DM Sans", sans-serif;
+  font-size: clamp(2.4rem, 5vw, 4.8rem);
+  font-weight: 700;
+  line-height: 1.1;
+  max-width: min(1200px, 94%);
+  color: var(--text);
+}
+
 .message-visible .message {
   display: block;
   color: var(--text);
+}
+
+.message-visible.display-only .timer-card-live {
+  min-height: 250px;
+}
+
+.message-visible.display-only .timer {
+  font-size: clamp(4.2rem, 8vw, 7rem);
 }
 
 .fullscreen-btn {
