@@ -23,7 +23,16 @@
       <div class="speaker-pill" id="speakerName"></div>
 
       <div class="timer-card timer-card-live">
-        <div class="timer" id="timer">00:00</div>
+        <div class="dual-timer">
+          <div class="time-panel clock-panel">
+            <div class="timer-label">Real Time</div>
+            <div class="clock-time" id="clockTime">00:00</div>
+          </div>
+          <div class="time-panel countdown-panel">
+            <div class="timer-label">Countdown</div>
+            <div class="timer" id="timer">00:00</div>
+          </div>
+        </div>
       </div>
 
       <div class="message" id="messageBox"></div>
@@ -33,30 +42,34 @@
   </div>
 
   <script type="module">
-    import { db, ref, onValue } from "./firebase.js";
+    import { db, ref, set, onValue } from "./firebase.js";
 
-    onValue(ref(db, "live"), (snapshot) => {
+    const SESSION_PATH = "sessionState";
+
+    let session = createDefaultSession();
+    let advancingToNext = false;
+
+    onValue(ref(db, SESSION_PATH), (snapshot) => {
       const data = snapshot.val();
       if (!data) return;
 
-      const timerEl = document.getElementById("timer");
-      const messageEl = document.getElementById("messageBox");
-
-      timerEl.innerText = data.time || "00:00";
-      document.getElementById("speakerName").innerText = data.speaker || "";
-      document.getElementById("currentTitle").innerText = data.title || "";
-      document.getElementById("serviceDisplay").innerText = data.service || "";
-      messageEl.innerText = data.message || "";
-
-      timerEl.className = "timer " + (data.color || "white");
-      document.body.setAttribute("data-timer-color", data.color || "white");
-
-      if (data.message && data.message.trim() !== "") {
-        document.body.classList.add("message-visible");
-      } else {
-        document.body.classList.remove("message-visible");
-      }
+      session = normalizeSession(data);
+      renderDisplay();
     });
+
+    setInterval(() => {
+      renderClock();
+
+      if (session.isRunning && getRemainingMs(session) <= 0) {
+        autoAdvance();
+        return;
+      }
+
+      renderDisplay();
+    }, 1000);
+
+    renderClock();
+    renderDisplay();
 
     const btn = document.getElementById("fullscreenBtn");
     btn.addEventListener("click", async () => {
@@ -66,6 +79,136 @@
         await document.exitFullscreen();
       }
     });
+
+    function createDefaultSession() {
+      return {
+        serviceName: "",
+        program: [],
+        currentIndex: 0,
+        remainingMs: 0,
+        isRunning: false,
+        endTime: null,
+        message: ""
+      };
+    }
+
+    function normalizeSession(data) {
+      const program = Array.isArray(data.program)
+        ? data.program
+            .map((item) => ({
+              title: String(item?.title || "").trim(),
+              speaker: String(item?.speaker || "").trim(),
+              duration: Number(item?.duration) > 0 ? Number(item.duration) : 0
+            }))
+            .filter((item) => item.title && item.duration > 0)
+        : [];
+
+      return {
+        serviceName: String(data.serviceName || "").trim(),
+        program,
+        currentIndex: Math.min(Math.max(Number(data.currentIndex) || 0, 0), program.length),
+        remainingMs: Math.max(Number(data.remainingMs) || 0, 0),
+        isRunning: Boolean(data.isRunning),
+        endTime: Number.isFinite(data.endTime) ? Number(data.endTime) : null,
+        message: String(data.message || "")
+      };
+    }
+
+    function getCurrentItem() {
+      return session.program[session.currentIndex] || null;
+    }
+
+    function getRemainingMs(currentSession = session) {
+      if (currentSession.isRunning && currentSession.endTime) {
+        return Math.max(0, currentSession.endTime - Date.now());
+      }
+
+      return Math.max(currentSession.remainingMs || 0, 0);
+    }
+
+    function getCountdownView() {
+      const remainingMs = getRemainingMs();
+      const totalSeconds = Math.ceil(remainingMs / 1000);
+      const minutes = Math.floor(totalSeconds / 60);
+      const seconds = totalSeconds % 60;
+
+      let color = "white";
+      if (remainingMs > 0 && remainingMs <= 120000) color = "red";
+      else if (remainingMs > 0 && remainingMs <= 180000) color = "orange";
+
+      return {
+        formatted: `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`,
+        color
+      };
+    }
+
+    function renderClock() {
+      const now = new Date();
+      const formatted = now.toLocaleTimeString([], {
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: false
+      });
+
+      document.getElementById("clockTime").innerText = formatted;
+    }
+
+    function renderDisplay() {
+      const countdown = getCountdownView();
+      const currentItem = getCurrentItem();
+      const timerEl = document.getElementById("timer");
+      const message = session.message || "";
+
+      timerEl.innerText = countdown.formatted;
+      timerEl.className = `timer ${countdown.color}`;
+
+      document.getElementById("speakerName").innerText = currentItem?.speaker || "Awaiting Speaker";
+      document.getElementById("currentTitle").innerText = currentItem?.title || "Ready";
+      document.getElementById("serviceDisplay").innerText = session.serviceName || "Service Not Named";
+      document.getElementById("messageBox").innerText = message;
+
+      document.body.classList.toggle("message-visible", Boolean(message.trim()));
+    }
+
+    function autoAdvance() {
+      if (advancingToNext) return;
+      advancingToNext = true;
+
+      const nextIndex = session.currentIndex + 1;
+
+      if (nextIndex >= session.program.length) {
+        session = {
+          ...session,
+          currentIndex: session.program.length,
+          remainingMs: 0,
+          isRunning: false,
+          endTime: null
+        };
+      } else {
+        const nextDuration = session.program[nextIndex].duration * 60 * 1000;
+        session = {
+          ...session,
+          currentIndex: nextIndex,
+          remainingMs: nextDuration,
+          isRunning: true,
+          endTime: Date.now() + nextDuration
+        };
+      }
+
+      set(ref(db, SESSION_PATH), {
+        serviceName: session.serviceName,
+        program: session.program,
+        currentIndex: session.currentIndex,
+        remainingMs: session.remainingMs,
+        isRunning: session.isRunning,
+        endTime: session.endTime,
+        message: session.message,
+        updatedAt: Date.now()
+      });
+
+      renderDisplay();
+      advancingToNext = false;
+    }
   </script>
 </body>
 </html>

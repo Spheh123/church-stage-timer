@@ -1,11 +1,13 @@
 import { db, ref, set, onValue } from "./firebase.js";
 
-let program = [];
-let currentIndex = 0;
-let timeLeft = 0;
-let interval = null;
-let isRunning = false;
+const SESSION_PATH = "sessionState";
+const PROGRAM_PATH = "program";
+const CONTROL_PATH = "controlState";
+
+let state = createDefaultSession();
 let controlsLocked = localStorage.getItem("stageTimerLocked") === "true";
+let editingIndex = -1;
+let advancingToNext = false;
 
 const elements = {
   serviceName: document.getElementById("serviceName"),
@@ -24,16 +26,28 @@ const elements = {
   lockToggle: document.getElementById("lockToggle"),
   lockText: document.getElementById("lockText"),
   lockIcon: document.getElementById("lockIcon"),
-  lockBadge: document.getElementById("lockBadge")
+  lockBadge: document.getElementById("lockBadge"),
+  addItemBtn: document.getElementById("addItemBtn"),
+  cancelEditBtn: document.getElementById("cancelEditBtn")
 };
-
-const lockableButtons = Array.from(document.querySelectorAll("[data-lockable='true']"));
 
 elements.lockToggle?.addEventListener("click", () => {
   setLockedState(!controlsLocked, { broadcast: true });
 });
 
-onValue(ref(db, "controlState"), (snapshot) => {
+elements.serviceName?.addEventListener("input", () => {
+  state.serviceName = elements.serviceName.value.trim();
+  persistSession();
+  refreshUi();
+});
+
+elements.liveMessage?.addEventListener("keydown", (event) => {
+  if (event.key === "Enter" && !controlsLocked) {
+    window.showMessage();
+  }
+});
+
+onValue(ref(db, CONTROL_PATH), (snapshot) => {
   const data = snapshot.val();
   if (!data || typeof data.locked !== "boolean") return;
 
@@ -42,20 +56,27 @@ onValue(ref(db, "controlState"), (snapshot) => {
   }
 });
 
+onValue(ref(db, SESSION_PATH), (snapshot) => {
+  const data = snapshot.val();
+  if (!data) return;
+
+  state = normalizeSession(data);
+  state.remainingMs = getRemainingMs(state);
+  syncFormFromState();
+  refreshUi();
+});
+
 setLockedState(controlsLocked, { broadcast: false });
 refreshUi();
-pushUpdate();
 
-elements.serviceName?.addEventListener("input", () => {
-  refreshUi();
-  pushUpdate();
-});
-
-elements.liveMessage?.addEventListener("keydown", (event) => {
-  if (event.key === "Enter" && !controlsLocked) {
-    window.showMessage();
+setInterval(() => {
+  if (state.isRunning && getRemainingMs(state) <= 0) {
+    autoAdvance();
+    return;
   }
-});
+
+  refreshUi();
+}, 1000);
 
 window.addItem = function () {
   const title = elements.title.value.trim();
@@ -67,138 +88,303 @@ window.addItem = function () {
     return;
   }
 
-  program.push({ title, speaker, duration });
+  const nextItem = { title, speaker, duration };
+  const program = [...state.program];
 
-  elements.title.value = "";
-  elements.speaker.value = "";
-  elements.duration.value = "";
+  if (editingIndex >= 0) {
+    const previousItem = program[editingIndex];
+    program[editingIndex] = nextItem;
+    applyCurrentItemDurationDelta(editingIndex, previousItem, nextItem);
+  } else {
+    program.push(nextItem);
+    if (program.length === 1 && !state.isRunning) {
+      state.currentIndex = 0;
+      state.remainingMs = nextItem.duration * 60 * 1000;
+    }
+  }
 
-  renderList();
+  state.program = program;
+  persistSession({ rebaseTimer: editingIndex === state.currentIndex });
+  clearEditor();
+  refreshUi();
+};
+
+window.cancelEdit = function () {
+  clearEditor();
+  refreshUi();
+};
+
+window.editItem = function (index) {
+  const item = state.program[index];
+  if (!item) return;
+
+  editingIndex = index;
+  elements.title.value = item.title;
+  elements.speaker.value = item.speaker;
+  elements.duration.value = item.duration;
+  refreshUi();
+};
+
+window.deleteItem = function (index) {
+  const item = state.program[index];
+  if (!item) return;
+  if (!confirm(`Delete "${item.title}" from the program?`)) return;
+
+  const program = [...state.program];
+  const wasCurrentItem = index === state.currentIndex;
+  program.splice(index, 1);
+  state.program = program;
+
+  if (program.length === 0) {
+    state.currentIndex = 0;
+    state.remainingMs = 0;
+    state.isRunning = false;
+    state.endTime = null;
+  } else if (index < state.currentIndex) {
+    state.currentIndex -= 1;
+  } else if (wasCurrentItem) {
+    state.currentIndex = Math.min(index, program.length - 1);
+    loadCurrentItemDuration();
+  }
+
+  if (editingIndex === index) {
+    clearEditor();
+  } else if (editingIndex > index) {
+    editingIndex -= 1;
+  }
+
+  persistSession({ rebaseTimer: wasCurrentItem && state.isRunning });
+  refreshUi();
+};
+
+window.adjustCurrentTime = function (minutesDelta) {
+  const currentItem = getCurrentItem();
+  if (!currentItem) return;
+
+  const nextRemaining = Math.max(0, getRemainingMs(state) + minutesDelta * 60 * 1000);
+  state.remainingMs = nextRemaining;
+
+  if (state.isRunning) {
+    state.endTime = Date.now() + nextRemaining;
+  }
+
+  persistSession({ rebaseTimer: state.isRunning });
   refreshUi();
 };
 
 window.startTimer = function () {
-  if (program.length === 0) return;
+  if (state.program.length === 0) return;
 
-  if (!isRunning && timeLeft === 0) {
-    loadItem();
+  if (state.currentIndex >= state.program.length) {
+    state.currentIndex = 0;
+    loadCurrentItemDuration();
   }
 
-  isRunning = true;
-  clearInterval(interval);
-  pushUpdate();
+  if (getRemainingMs(state) <= 0) {
+    loadCurrentItemDuration();
+  }
 
-  interval = setInterval(() => {
-    if (!isRunning) return;
-
-    timeLeft -= 1;
-
-    if (timeLeft < 0) {
-      nextItem();
-      return;
-    }
-
-    pushUpdate();
-  }, 1000);
-
+  state.isRunning = true;
+  state.endTime = Date.now() + getRemainingMs(state);
+  persistSession({ rebaseTimer: true });
   refreshUi();
 };
 
 window.pauseTimer = function () {
-  isRunning = false;
+  state.remainingMs = getRemainingMs(state);
+  state.isRunning = false;
+  state.endTime = null;
+  persistSession();
   refreshUi();
-  pushUpdate();
 };
 
 window.resetTimer = function () {
-  clearInterval(interval);
-  currentIndex = 0;
-  timeLeft = 0;
-  isRunning = false;
+  state.currentIndex = 0;
+  state.isRunning = false;
+  state.endTime = null;
+  state.remainingMs = state.program[0] ? state.program[0].duration * 60 * 1000 : 0;
+  persistSession();
   refreshUi();
-  pushUpdate();
 };
 
 window.nextItem = function () {
-  currentIndex += 1;
-
-  if (currentIndex >= program.length) {
-    clearInterval(interval);
-    currentIndex = program.length;
-    timeLeft = 0;
-    isRunning = false;
-    refreshUi();
-    pushUpdate();
-    return;
-  }
-
-  loadItem();
-  refreshUi();
-  pushUpdate();
+  advanceToNextItem();
 };
 
 window.showMessage = function () {
-  elements.messageBox.innerText = elements.liveMessage.value.trim();
-  pushUpdate();
+  state.message = elements.liveMessage.value.trim();
+  persistSession();
+  refreshUi();
 };
 
 window.clearMessage = function () {
   elements.liveMessage.value = "";
-  elements.messageBox.innerText = "";
-  pushUpdate();
+  state.message = "";
+  persistSession();
+  refreshUi();
 };
 
 window.saveProgram = function () {
-  const serviceName = elements.serviceName.value.trim();
-
-  set(ref(db, "program"), {
-    program,
-    serviceName
+  set(ref(db, PROGRAM_PATH), {
+    serviceName: state.serviceName,
+    program: state.program
   });
 
   alert("Program saved.");
 };
 
 window.loadProgram = function () {
-  onValue(ref(db, "program"), (snapshot) => {
+  onValue(ref(db, PROGRAM_PATH), (snapshot) => {
     const data = snapshot.val();
     if (!data) {
       alert("No saved program found.");
       return;
     }
 
-    program = data.program || [];
-    elements.serviceName.value = data.serviceName || "";
-    currentIndex = 0;
-    timeLeft = 0;
-    isRunning = false;
+    state = normalizeSession({
+      ...state,
+      serviceName: data.serviceName || "",
+      program: data.program || [],
+      currentIndex: 0,
+      remainingMs: data.program?.[0] ? data.program[0].duration * 60 * 1000 : 0,
+      isRunning: false,
+      endTime: null,
+      message: state.message
+    });
 
-    renderList();
+    clearEditor();
+    syncFormFromState();
+    persistSession();
     refreshUi();
-    pushUpdate();
   }, { onlyOnce: true });
 };
 
 window.clearProgram = function () {
   if (!confirm("Delete the full saved program?")) return;
 
-  clearInterval(interval);
-  program = [];
-  currentIndex = 0;
-  timeLeft = 0;
-  isRunning = false;
+  set(ref(db, PROGRAM_PATH), null);
+  state = createDefaultSession();
+  clearEditor();
+  syncFormFromState();
+  persistSession();
+  refreshUi();
+};
 
-  set(ref(db, "program"), null);
+function createDefaultSession() {
+  return {
+    serviceName: "",
+    program: [],
+    currentIndex: 0,
+    remainingMs: 0,
+    isRunning: false,
+    endTime: null,
+    message: ""
+  };
+}
+
+function normalizeSession(data) {
+  const program = Array.isArray(data.program)
+    ? data.program
+        .map((item) => ({
+          title: String(item?.title || "").trim(),
+          speaker: String(item?.speaker || "").trim(),
+          duration: Number(item?.duration) > 0 ? Number(item.duration) : 0
+        }))
+        .filter((item) => item.title && item.duration > 0)
+    : [];
+
+  const maxIndex = program.length === 0 ? 0 : program.length;
+  const currentIndex = Math.min(Math.max(Number(data.currentIndex) || 0, 0), maxIndex);
+
+  return {
+    serviceName: String(data.serviceName || "").trim(),
+    program,
+    currentIndex,
+    remainingMs: Math.max(Number(data.remainingMs) || 0, 0),
+    isRunning: Boolean(data.isRunning),
+    endTime: Number.isFinite(data.endTime) ? Number(data.endTime) : null,
+    message: String(data.message || "")
+  };
+}
+
+function getCurrentItem(session = state) {
+  return session.program[session.currentIndex] || null;
+}
+
+function getRemainingMs(session = state) {
+  if (session.isRunning && session.endTime) {
+    return Math.max(0, session.endTime - Date.now());
+  }
+
+  return Math.max(session.remainingMs || 0, 0);
+}
+
+function getTimerPresentation(session = state) {
+  const safeMs = getRemainingMs(session);
+  const totalSeconds = Math.ceil(safeMs / 1000);
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  const formatted = `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
+
+  let color = "white";
+  if (safeMs > 0 && safeMs <= 120000) color = "red";
+  else if (safeMs > 0 && safeMs <= 180000) color = "orange";
+
+  return { formatted, color, remainingMs: safeMs };
+}
+
+function persistSession(options = {}) {
+  const { rebaseTimer = false } = options;
+  const remainingMs = getRemainingMs(state);
+  const serviceInputIsActive = document.activeElement === elements.serviceName;
+
+  state.remainingMs = remainingMs;
+  state.serviceName = serviceInputIsActive
+    ? elements.serviceName.value.trim()
+    : state.serviceName;
+
+  if (state.isRunning) {
+    state.endTime = rebaseTimer ? Date.now() + remainingMs : state.endTime;
+  } else {
+    state.endTime = null;
+  }
+
+  set(ref(db, SESSION_PATH), {
+    serviceName: state.serviceName,
+    program: state.program,
+    currentIndex: state.currentIndex,
+    remainingMs,
+    isRunning: state.isRunning,
+    endTime: state.endTime,
+    message: state.message,
+    updatedAt: Date.now()
+  });
+}
+
+function refreshUi() {
+  const current = getCurrentItem();
+  const { formatted, color } = getTimerPresentation();
+
+  elements.itemCount.innerText = String(state.program.length);
+  elements.currentSegmentLabel.innerText = current?.title || "Ready";
+  elements.speakerName.innerText = current?.speaker || "Awaiting Speaker";
+  elements.currentTitle.innerText = current?.title || "Ready";
+  elements.serviceDisplay.innerText = state.serviceName || "Service Not Named";
+  elements.messageBox.innerText = state.message || "";
+  elements.timer.innerText = formatted;
+  elements.timer.className = `timer timer-preview ${color}`;
+  elements.serviceName.value = state.serviceName;
+
+  document.body.classList.toggle("message-visible", Boolean(state.message.trim()));
 
   renderList();
-  refreshUi();
-  pushUpdate();
-};
+  updateEditorState();
+}
 
 function renderList() {
   elements.programList.innerHTML = "";
 
-  if (program.length === 0) {
+  if (state.program.length === 0) {
     const emptyState = document.createElement("li");
     emptyState.className = "program-empty";
     emptyState.innerText = "No segments yet. Add your first item to build the service flow.";
@@ -206,11 +392,11 @@ function renderList() {
     return;
   }
 
-  program.forEach((item, index) => {
+  state.program.forEach((item, index) => {
     const li = document.createElement("li");
     li.className = "program-item";
 
-    if (index === currentIndex && (timeLeft > 0 || isRunning)) {
+    if (index === state.currentIndex) {
       li.classList.add("active");
     }
 
@@ -233,21 +419,111 @@ function renderList() {
     duration.className = "program-duration";
     duration.innerText = `${item.duration} min`;
 
-    li.append(indexBadge, copy, duration);
+    const actions = document.createElement("div");
+    actions.className = "program-actions";
 
+    const editButton = document.createElement("button");
+    editButton.className = "mini-btn";
+    editButton.type = "button";
+    editButton.dataset.lockable = "true";
+    editButton.innerText = "Edit";
+    editButton.addEventListener("click", () => window.editItem(index));
+
+    const deleteButton = document.createElement("button");
+    deleteButton.className = "mini-btn mini-btn-danger";
+    deleteButton.type = "button";
+    deleteButton.dataset.lockable = "true";
+    deleteButton.innerText = "Delete";
+    deleteButton.addEventListener("click", () => window.deleteItem(index));
+
+    actions.append(editButton, deleteButton);
+    li.append(indexBadge, copy, duration, actions);
     elements.programList.appendChild(li);
   });
+
+  applyLockStateToButtons();
 }
 
-function loadItem() {
-  const item = program[currentIndex];
+function updateEditorState() {
+  if (editingIndex >= 0) {
+    elements.addItemBtn.innerText = "Save Item Changes";
+    elements.cancelEditBtn.style.display = "block";
+  } else {
+    elements.addItemBtn.innerText = "Add Program Item";
+    elements.cancelEditBtn.style.display = "none";
+  }
+}
 
-  if (!item) {
-    timeLeft = 0;
+function clearEditor() {
+  editingIndex = -1;
+  elements.title.value = "";
+  elements.speaker.value = "";
+  elements.duration.value = "";
+}
+
+function syncFormFromState() {
+  elements.serviceName.value = state.serviceName;
+  elements.liveMessage.value = state.message;
+}
+
+function loadCurrentItemDuration() {
+  const current = getCurrentItem();
+  state.remainingMs = current ? current.duration * 60 * 1000 : 0;
+
+  if (state.isRunning) {
+    state.endTime = Date.now() + state.remainingMs;
+  } else {
+    state.endTime = null;
+  }
+}
+
+function applyCurrentItemDurationDelta(index, previousItem, nextItem) {
+  if (index !== state.currentIndex || !previousItem) return;
+
+  const deltaMs = (nextItem.duration - previousItem.duration) * 60 * 1000;
+  const nextRemaining = Math.max(0, getRemainingMs(state) + deltaMs);
+  state.remainingMs = nextRemaining;
+
+  if (state.isRunning) {
+    state.endTime = Date.now() + nextRemaining;
+  }
+}
+
+function advanceToNextItem() {
+  if (state.program.length === 0) return;
+
+  const willKeepRunning = state.isRunning;
+  const nextIndex = state.currentIndex + 1;
+
+  if (nextIndex >= state.program.length) {
+    state.currentIndex = state.program.length;
+    state.remainingMs = 0;
+    state.isRunning = false;
+    state.endTime = null;
+    persistSession();
+    refreshUi();
     return;
   }
 
-  timeLeft = item.duration * 60;
+  state.currentIndex = nextIndex;
+  state.remainingMs = state.program[nextIndex].duration * 60 * 1000;
+  state.isRunning = willKeepRunning;
+  state.endTime = willKeepRunning ? Date.now() + state.remainingMs : null;
+  persistSession({ rebaseTimer: willKeepRunning });
+  refreshUi();
+}
+
+function autoAdvance() {
+  if (advancingToNext) return;
+  advancingToNext = true;
+  advanceToNextItem();
+  advancingToNext = false;
+}
+
+function applyLockStateToButtons() {
+  document.querySelectorAll("[data-lockable='true']").forEach((button) => {
+    button.disabled = controlsLocked;
+  });
 }
 
 function setLockedState(locked, options = {}) {
@@ -256,10 +532,7 @@ function setLockedState(locked, options = {}) {
   controlsLocked = locked;
   localStorage.setItem("stageTimerLocked", String(locked));
   document.body.classList.toggle("controls-locked", locked);
-
-  lockableButtons.forEach((button) => {
-    button.disabled = locked;
-  });
+  applyLockStateToButtons();
 
   if (elements.lockText) {
     elements.lockText.innerText = locked ? "Unlock Controls" : "Lock Controls";
@@ -274,52 +547,6 @@ function setLockedState(locked, options = {}) {
   }
 
   if (broadcast) {
-    set(ref(db, "controlState"), { locked });
+    set(ref(db, CONTROL_PATH), { locked });
   }
-}
-
-function getTimerState() {
-  const safeTimeLeft = Math.max(timeLeft, 0);
-  const minutes = Math.floor(safeTimeLeft / 60);
-  const seconds = safeTimeLeft % 60;
-  const formatted = `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
-
-  let color = "white";
-  if (safeTimeLeft <= 120 && safeTimeLeft > 0) color = "red";
-  else if (safeTimeLeft <= 180 && safeTimeLeft > 0) color = "orange";
-
-  return { formatted, color };
-}
-
-function refreshUi() {
-  const current = program[currentIndex] || {};
-  const { formatted, color } = getTimerState();
-
-  elements.itemCount.innerText = String(program.length);
-  elements.currentSegmentLabel.innerText = current.title || "Ready";
-  elements.speakerName.innerText = current.speaker || "Awaiting Speaker";
-  elements.currentTitle.innerText = current.title || "Ready";
-  elements.serviceDisplay.innerText = elements.serviceName.value.trim() || "Service Not Named";
-  elements.timer.innerText = formatted;
-  elements.timer.className = `timer timer-preview ${color}`;
-
-  renderList();
-}
-
-function pushUpdate() {
-  const current = program[currentIndex] || {};
-  const { formatted, color } = getTimerState();
-  const message = elements.messageBox?.innerText || "";
-  const service = elements.serviceName?.value.trim() || "";
-
-  refreshUi();
-
-  set(ref(db, "live"), {
-    time: formatted,
-    speaker: current.speaker || "",
-    title: current.title || "",
-    message,
-    service,
-    color
-  });
 }

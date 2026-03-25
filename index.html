@@ -69,7 +69,10 @@
           </label>
         </div>
 
-        <button class="action-btn action-btn-secondary" type="button" data-lockable="true" onclick="addItem()">Add Program Item</button>
+        <div class="editor-actions">
+          <button id="addItemBtn" class="action-btn action-btn-secondary" type="button" data-lockable="true" onclick="addItem()">Add Program Item</button>
+          <button id="cancelEditBtn" class="action-btn" type="button" data-lockable="true" onclick="cancelEdit()">Cancel Edit</button>
+        </div>
 
         <ul id="programList" class="program-list"></ul>
       </section>
@@ -85,6 +88,17 @@
           <button class="big-btn pause" type="button" data-lockable="true" onclick="pauseTimer()">Pause</button>
           <button class="big-btn skip" type="button" data-lockable="true" onclick="nextItem()">Skip Next</button>
           <button class="big-btn reset" type="button" data-lockable="true" onclick="resetTimer()">Reset</button>
+        </div>
+
+        <div class="section-heading section-heading-compact">
+          <h2>Current Speaker Time</h2>
+          <p>Add or remove time instantly without stopping the live event.</p>
+        </div>
+
+        <div class="time-adjust-grid">
+          <button class="action-btn" type="button" data-lockable="true" onclick="adjustCurrentTime(-1)">-1 Minute</button>
+          <button class="action-btn" type="button" data-lockable="true" onclick="adjustCurrentTime(1)">+1 Minute</button>
+          <button class="action-btn action-btn-secondary" type="button" data-lockable="true" onclick="adjustCurrentTime(5)">+5 Minutes</button>
         </div>
 
         <div class="secondary-actions">

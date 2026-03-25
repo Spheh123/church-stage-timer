@@ -24,6 +24,10 @@ body {
   min-height: 100%;
 }
 
+html {
+  overflow-x: hidden;
+}
+
 body {
   font-family: "DM Sans", "Segoe UI", sans-serif;
   background:
@@ -280,10 +284,28 @@ input:focus {
 }
 
 .secondary-actions,
-.message-actions {
+.message-actions,
+.editor-actions,
+.time-adjust-grid {
   display: grid;
   gap: 10px;
   margin-top: 14px;
+}
+
+.editor-actions {
+  grid-template-columns: 1fr;
+}
+
+#cancelEditBtn {
+  display: none;
+}
+
+.section-heading-compact {
+  margin-top: 22px;
+}
+
+.time-adjust-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
 .program-list {
@@ -297,7 +319,7 @@ input:focus {
 .program-item,
 .program-empty {
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto;
+  grid-template-columns: auto minmax(0, 1fr) auto auto;
   gap: 12px;
   align-items: center;
   padding: 14px 16px;
@@ -347,11 +369,33 @@ input:focus {
   margin-bottom: 4px;
 }
 
+.program-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.mini-btn {
+  border: 0;
+  border-radius: 12px;
+  padding: 10px 12px;
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--text);
+  cursor: pointer;
+}
+
+.mini-btn-danger {
+  background: rgba(255, 107, 107, 0.16);
+}
+
 .display-stage,
 .display-full {
   position: relative;
   overflow: hidden;
   min-height: 100vh;
+}
+
+body.display-only {
+  overflow: hidden;
 }
 
 .display-stage {
@@ -463,6 +507,42 @@ input:focus {
   width: min(980px, 100%);
 }
 
+.dual-timer {
+  display: grid;
+  grid-template-columns: minmax(260px, 0.85fr) minmax(360px, 1.15fr);
+  gap: 22px;
+  width: min(1120px, 100%);
+  align-items: stretch;
+}
+
+.time-panel {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  padding: 26px 24px;
+  min-height: 250px;
+  border-radius: 28px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.timer-label {
+  margin-bottom: 16px;
+  font-size: 0.95rem;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.clock-time {
+  font-family: "Space Grotesk", "DM Sans", sans-serif;
+  font-size: clamp(3rem, 5vw, 4.8rem);
+  font-weight: 700;
+  line-height: 1;
+  color: var(--text);
+}
+
 .timer {
   font-family: "Space Grotesk", "DM Sans", sans-serif;
   font-size: clamp(5rem, 12vw, 9rem);
@@ -548,16 +628,17 @@ input:focus {
 
 .display-only .message {
   margin-top: 28px;
-  padding: 22px 30px;
+  padding: 24px 34px;
   border-radius: 28px;
   background: linear-gradient(135deg, rgba(255, 255, 255, 0.14), rgba(243, 201, 105, 0.12));
   border: 1px solid rgba(255, 255, 255, 0.14);
   font-family: "Space Grotesk", "DM Sans", sans-serif;
-  font-size: clamp(2.4rem, 5vw, 4.8rem);
+  font-size: clamp(3rem, 6vw, 5.8rem);
   font-weight: 700;
-  line-height: 1.1;
+  line-height: 1.05;
   max-width: min(1200px, 94%);
   color: var(--text);
+  box-shadow: 0 22px 60px rgba(0, 0, 0, 0.28);
 }
 
 .message-visible .message {
@@ -566,11 +647,19 @@ input:focus {
 }
 
 .message-visible.display-only .timer-card-live {
-  min-height: 250px;
+  min-height: 220px;
 }
 
 .message-visible.display-only .timer {
-  font-size: clamp(4.2rem, 8vw, 7rem);
+  font-size: clamp(3.6rem, 6.5vw, 5.8rem);
+}
+
+.message-visible.display-only .clock-time {
+  font-size: clamp(2.6rem, 4vw, 4rem);
+}
+
+.message-visible.display-only .time-panel {
+  min-height: 200px;
 }
 
 .fullscreen-btn {
@@ -658,6 +747,10 @@ button:disabled {
     grid-template-columns: 1fr;
   }
 
+  .time-adjust-grid {
+    grid-template-columns: 1fr;
+  }
+
   .display {
     padding: 22px;
     min-height: 420px;
@@ -668,5 +761,14 @@ button:disabled {
     flex-direction: column;
     align-items: flex-start;
     gap: 12px;
+  }
+
+  .dual-timer,
+  .program-item {
+    grid-template-columns: 1fr;
+  }
+
+  .program-actions {
+    justify-content: flex-start;
   }
 }
