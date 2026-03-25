@@ -538,7 +538,7 @@ body.display-only {
 
 .clock-time {
   font-family: "Space Grotesk", "DM Sans", sans-serif;
-  font-size: clamp(4rem, 7vw, 7rem);
+  font-size: clamp(5rem, 9vw, 8.8rem);
   font-weight: 700;
   line-height: 1;
   color: var(--text);
@@ -612,20 +612,38 @@ body.display-only {
   justify-content: space-evenly;
 }
 
+.display-segment {
+  order: 1;
+}
+
+.timer-card-live {
+  order: 2;
+}
+
+.display-speaker {
+  order: 3;
+}
+
+.display-only .message {
+  order: 4;
+}
+
 .display-only .speaker-pill {
   align-self: center;
   justify-content: center;
-  margin-bottom: 20px;
-  padding: 18px 34px;
-  font-size: clamp(2rem, 4vw, 3.2rem);
+  margin-top: 20px;
+  margin-bottom: 0;
+  padding: 20px 38px;
+  font-size: clamp(2.3rem, 4.6vw, 3.8rem);
   font-weight: 700;
   text-align: center;
   max-width: min(1700px, 96vw);
 }
 
 .display-only .footer {
-  margin-top: 22px;
-  font-size: clamp(2.6rem, 4.8vw, 4.4rem);
+  margin-top: 0;
+  margin-bottom: 24px;
+  font-size: clamp(3rem, 5.4vw, 5rem);
   max-width: min(1700px, 96vw);
 }
 
@@ -659,7 +677,7 @@ body.display-only {
 }
 
 .message-visible.display-only .clock-time {
-  font-size: clamp(3.2rem, 5.8vw, 5.5rem);
+  font-size: clamp(3.8rem, 6.8vw, 6.4rem);
 }
 
 .message-visible.display-only .time-panel {
