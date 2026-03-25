@@ -506,12 +506,13 @@ body.display-only {
 .timer-card-live {
   min-height: 360px;
   width: min(1680px, 96vw);
+  padding: 20px 18px;
 }
 
 .dual-timer {
   display: grid;
-  grid-template-columns: minmax(420px, 0.9fr) minmax(720px, 1.1fr);
-  gap: 28px;
+  grid-template-columns: minmax(500px, 0.92fr) minmax(860px, 1.08fr);
+  gap: 22px;
   width: 100%;
   align-items: stretch;
 }
@@ -521,8 +522,8 @@ body.display-only {
   flex-direction: column;
   justify-content: center;
   align-items: center;
-  padding: 32px 28px;
-  min-height: 310px;
+  padding: 26px 22px;
+  min-height: 320px;
   border-radius: 28px;
   background: rgba(255, 255, 255, 0.04);
   border: 1px solid rgba(255, 255, 255, 0.08);
@@ -538,7 +539,7 @@ body.display-only {
 
 .clock-time {
   font-family: "Space Grotesk", "DM Sans", sans-serif;
-  font-size: clamp(5rem, 9vw, 8.8rem);
+  font-size: clamp(5.8rem, 10.5vw, 10rem);
   font-weight: 700;
   line-height: 1;
   color: var(--text);
@@ -546,7 +547,7 @@ body.display-only {
 
 .timer {
   font-family: "Space Grotesk", "DM Sans", sans-serif;
-  font-size: clamp(6.5rem, 14vw, 12rem);
+  font-size: clamp(8rem, 16vw, 14rem);
   font-weight: 700;
   line-height: 1;
   text-shadow: 0 0 24px rgba(255, 255, 255, 0.08);
@@ -631,10 +632,10 @@ body.display-only {
 .display-only .speaker-pill {
   align-self: center;
   justify-content: center;
-  margin-top: 20px;
+  margin-top: 30px;
   margin-bottom: 0;
-  padding: 20px 38px;
-  font-size: clamp(2.3rem, 4.6vw, 3.8rem);
+  padding: 14px 28px;
+  font-size: clamp(1.5rem, 2.8vw, 2.4rem);
   font-weight: 700;
   text-align: center;
   max-width: min(1700px, 96vw);
@@ -642,8 +643,8 @@ body.display-only {
 
 .display-only .footer {
   margin-top: 0;
-  margin-bottom: 24px;
-  font-size: clamp(3rem, 5.4vw, 5rem);
+  margin-bottom: 34px;
+  font-size: clamp(1.9rem, 3vw, 2.8rem);
   max-width: min(1700px, 96vw);
 }
 
@@ -670,19 +671,20 @@ body.display-only {
 
 .message-visible.display-only .timer-card-live {
   min-height: 170px;
+  padding: 12px;
 }
 
 .message-visible.display-only .timer {
-  font-size: clamp(4.2rem, 8vw, 7rem);
+  font-size: clamp(5rem, 9vw, 8rem);
 }
 
 .message-visible.display-only .clock-time {
-  font-size: clamp(3.8rem, 6.8vw, 6.4rem);
+  font-size: clamp(4.2rem, 7.2vw, 6.8rem);
 }
 
 .message-visible.display-only .time-panel {
   min-height: 170px;
-  padding: 20px 22px;
+  padding: 16px 18px;
 }
 
 .message-visible.display-only .timer-label {
