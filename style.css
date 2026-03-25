@@ -441,6 +441,7 @@ body.display-only {
   width: 100%;
   border: 0;
   border-radius: 0;
+  padding: 18px 24px 14px;
 }
 
 .display-head,
@@ -504,14 +505,14 @@ body.display-only {
 
 .timer-card-live {
   min-height: 360px;
-  width: min(980px, 100%);
+  width: min(1680px, 96vw);
 }
 
 .dual-timer {
   display: grid;
-  grid-template-columns: minmax(260px, 0.85fr) minmax(360px, 1.15fr);
-  gap: 22px;
-  width: min(1120px, 100%);
+  grid-template-columns: minmax(420px, 0.9fr) minmax(720px, 1.1fr);
+  gap: 28px;
+  width: 100%;
   align-items: stretch;
 }
 
@@ -520,8 +521,8 @@ body.display-only {
   flex-direction: column;
   justify-content: center;
   align-items: center;
-  padding: 26px 24px;
-  min-height: 250px;
+  padding: 32px 28px;
+  min-height: 310px;
   border-radius: 28px;
   background: rgba(255, 255, 255, 0.04);
   border: 1px solid rgba(255, 255, 255, 0.08);
@@ -537,7 +538,7 @@ body.display-only {
 
 .clock-time {
   font-family: "Space Grotesk", "DM Sans", sans-serif;
-  font-size: clamp(3rem, 5vw, 4.8rem);
+  font-size: clamp(4rem, 7vw, 7rem);
   font-weight: 700;
   line-height: 1;
   color: var(--text);
@@ -545,7 +546,7 @@ body.display-only {
 
 .timer {
   font-family: "Space Grotesk", "DM Sans", sans-serif;
-  font-size: clamp(5rem, 12vw, 9rem);
+  font-size: clamp(6.5rem, 14vw, 12rem);
   font-weight: 700;
   line-height: 1;
   text-shadow: 0 0 24px rgba(255, 255, 255, 0.08);
@@ -603,40 +604,43 @@ body.display-only {
 .display-only .display-head {
   width: 100%;
   align-items: flex-start;
+  margin-bottom: 14px;
 }
 
 .display-only .display-focus {
   width: 100%;
+  justify-content: space-evenly;
 }
 
 .display-only .speaker-pill {
   align-self: center;
   justify-content: center;
-  margin-bottom: 28px;
-  padding: 16px 28px;
-  font-size: clamp(1.5rem, 3vw, 2.4rem);
+  margin-bottom: 20px;
+  padding: 18px 34px;
+  font-size: clamp(2rem, 4vw, 3.2rem);
   font-weight: 700;
   text-align: center;
-  max-width: min(1100px, 92%);
+  max-width: min(1700px, 96vw);
 }
 
 .display-only .footer {
-  margin-top: 26px;
-  font-size: clamp(2rem, 4vw, 3.4rem);
-  max-width: min(1100px, 94%);
+  margin-top: 22px;
+  font-size: clamp(2.6rem, 4.8vw, 4.4rem);
+  max-width: min(1700px, 96vw);
 }
 
 .display-only .message {
   margin-top: 28px;
-  padding: 24px 34px;
+  width: min(1760px, 96vw);
+  max-width: 96vw;
+  padding: 34px 42px;
   border-radius: 28px;
   background: linear-gradient(135deg, rgba(255, 255, 255, 0.14), rgba(243, 201, 105, 0.12));
   border: 1px solid rgba(255, 255, 255, 0.14);
   font-family: "Space Grotesk", "DM Sans", sans-serif;
-  font-size: clamp(3rem, 6vw, 5.8rem);
+  font-size: clamp(4rem, 8vw, 8.5rem);
   font-weight: 700;
   line-height: 1.05;
-  max-width: min(1200px, 94%);
   color: var(--text);
   box-shadow: 0 22px 60px rgba(0, 0, 0, 0.28);
 }
@@ -647,19 +651,29 @@ body.display-only {
 }
 
 .message-visible.display-only .timer-card-live {
-  min-height: 220px;
+  min-height: 170px;
 }
 
 .message-visible.display-only .timer {
-  font-size: clamp(3.6rem, 6.5vw, 5.8rem);
+  font-size: clamp(4.2rem, 8vw, 7rem);
 }
 
 .message-visible.display-only .clock-time {
-  font-size: clamp(2.6rem, 4vw, 4rem);
+  font-size: clamp(3.2rem, 5.8vw, 5.5rem);
 }
 
 .message-visible.display-only .time-panel {
-  min-height: 200px;
+  min-height: 170px;
+  padding: 20px 22px;
+}
+
+.message-visible.display-only .timer-label {
+  margin-bottom: 10px;
+  font-size: 0.82rem;
+}
+
+.display-only .signature-display {
+  display: none;
 }
 
 .fullscreen-btn {
