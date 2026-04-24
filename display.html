@@ -42,29 +42,28 @@
   </div>
 
   <script type="module">
-    import { db, ref, set, onValue } from "./firebase.js";
+    import { db, ref, onValue } from "./firebase.js";
 
     const SESSION_PATH = "sessionState";
 
     let session = createDefaultSession();
-    let advancingToNext = false;
 
     onValue(ref(db, SESSION_PATH), (snapshot) => {
       const data = snapshot.val();
       if (!data) return;
 
-      session = normalizeSession(data);
+      const incomingSession = normalizeSession(data);
+
+      if (incomingSession.updatedAt && incomingSession.updatedAt < session.updatedAt) {
+        return;
+      }
+
+      session = incomingSession;
       renderDisplay();
     });
 
     setInterval(() => {
       renderClock();
-
-      if (session.isRunning && getRemainingMs(session) <= 0) {
-        autoAdvance();
-        return;
-      }
-
       renderDisplay();
     }, 1000);
 
@@ -88,7 +87,8 @@
         remainingMs: 0,
         isRunning: false,
         endTime: null,
-        message: ""
+        message: "",
+        updatedAt: 0
       };
     }
 
@@ -110,7 +110,8 @@
         remainingMs: Math.max(Number(data.remainingMs) || 0, 0),
         isRunning: Boolean(data.isRunning),
         endTime: Number.isFinite(data.endTime) ? Number(data.endTime) : null,
-        message: String(data.message || "")
+        message: String(data.message || ""),
+        updatedAt: Math.max(Number(data.updatedAt) || 0, 0)
       };
     }
 
@@ -170,45 +171,6 @@
       document.body.classList.toggle("message-visible", Boolean(message.trim()));
     }
 
-    function autoAdvance() {
-      if (advancingToNext) return;
-      advancingToNext = true;
-
-      const nextIndex = session.currentIndex + 1;
-
-      if (nextIndex >= session.program.length) {
-        session = {
-          ...session,
-          currentIndex: session.program.length,
-          remainingMs: 0,
-          isRunning: false,
-          endTime: null
-        };
-      } else {
-        const nextDuration = session.program[nextIndex].duration * 60 * 1000;
-        session = {
-          ...session,
-          currentIndex: nextIndex,
-          remainingMs: nextDuration,
-          isRunning: true,
-          endTime: Date.now() + nextDuration
-        };
-      }
-
-      set(ref(db, SESSION_PATH), {
-        serviceName: session.serviceName,
-        program: session.program,
-        currentIndex: session.currentIndex,
-        remainingMs: session.remainingMs,
-        isRunning: session.isRunning,
-        endTime: session.endTime,
-        message: session.message,
-        updatedAt: Date.now()
-      });
-
-      renderDisplay();
-      advancingToNext = false;
-    }
   </script>
 </body>
 </html>

@@ -60,7 +60,13 @@ onValue(ref(db, SESSION_PATH), (snapshot) => {
   const data = snapshot.val();
   if (!data) return;
 
-  state = normalizeSession(data);
+  const incomingState = normalizeSession(data);
+
+  if (incomingState.updatedAt && incomingState.updatedAt < state.updatedAt) {
+    return;
+  }
+
+  state = incomingState;
   state.remainingMs = getRemainingMs(state);
   syncFormFromState();
   refreshUi();
@@ -278,7 +284,8 @@ function createDefaultSession() {
     remainingMs: 0,
     isRunning: false,
     endTime: null,
-    message: ""
+    message: "",
+    updatedAt: 0
   };
 }
 
@@ -303,7 +310,8 @@ function normalizeSession(data) {
     remainingMs: Math.max(Number(data.remainingMs) || 0, 0),
     isRunning: Boolean(data.isRunning),
     endTime: Number.isFinite(data.endTime) ? Number(data.endTime) : null,
-    message: String(data.message || "")
+    message: String(data.message || ""),
+    updatedAt: Math.max(Number(data.updatedAt) || 0, 0)
   };
 }
 
@@ -337,11 +345,13 @@ function persistSession(options = {}) {
   const { rebaseTimer = false } = options;
   const remainingMs = getRemainingMs(state);
   const serviceInputIsActive = document.activeElement === elements.serviceName;
+  const updatedAt = Date.now();
 
   state.remainingMs = remainingMs;
   state.serviceName = serviceInputIsActive
     ? elements.serviceName.value.trim()
     : state.serviceName;
+  state.updatedAt = updatedAt;
 
   if (state.isRunning) {
     state.endTime = rebaseTimer ? Date.now() + remainingMs : state.endTime;
@@ -357,7 +367,7 @@ function persistSession(options = {}) {
     isRunning: state.isRunning,
     endTime: state.endTime,
     message: state.message,
-    updatedAt: Date.now()
+    updatedAt
   });
 }
 
