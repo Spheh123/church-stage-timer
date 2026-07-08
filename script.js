@@ -1,7 +1,6 @@
 import { db, ref, set, onValue } from "./firebase.js";
 
 const SESSION_PATH = "sessionState";
-const LEGACY_PROGRAM_PATH = "program";
 const PROGRAMS_PATH = "programs";
 const PROGRAM_PRESETS = [
   { id: "sunday", name: "Sunday Service" },
@@ -55,6 +54,7 @@ elements.serviceName?.addEventListener("input", () => {
 
 elements.programPreset?.addEventListener("change", () => {
   localStorage.setItem(SELECTED_PROGRAM_KEY, elements.programPreset.value);
+  loadSelectedProgramSlot({ showEmptyAlert: false });
 });
 
 elements.liveMessage?.addEventListener("keydown", (event) => {
@@ -288,31 +288,7 @@ window.saveProgram = function () {
 };
 
 window.loadProgram = function () {
-  const preset = getSelectedProgramPreset();
-
-  onValue(ref(db, getSelectedProgramPath()), (snapshot) => {
-    const savedProgram = snapshot.val();
-
-    if (savedProgram) {
-      loadSavedProgram(savedProgram, preset.name);
-      return;
-    }
-
-    onValue(ref(db, LEGACY_PROGRAM_PATH), (legacySnapshot) => {
-      const legacyProgram = legacySnapshot.val();
-      const canImportLegacy = legacyProgram && confirm(`No saved program found for ${preset.name}. Load the old saved program into this slot?`);
-
-      if (canImportLegacy) {
-        loadSavedProgram(legacyProgram, preset.name);
-        return;
-      }
-
-      const startBlank = confirm(`Start a blank ${preset.name} program?`);
-      if (!startBlank) return;
-
-      loadSavedProgram({ serviceName: preset.name, program: [] }, preset.name);
-    }, { onlyOnce: true });
-  }, { onlyOnce: true });
+  loadSelectedProgramSlot({ showEmptyAlert: true });
 };
 
 window.clearProgram = function () {
@@ -353,6 +329,26 @@ function getSelectedProgramPreset() {
 
 function getSelectedProgramPath() {
   return `${PROGRAMS_PATH}/${getSelectedProgramPreset().id}`;
+}
+
+function loadSelectedProgramSlot(options = {}) {
+  const { showEmptyAlert = false } = options;
+  const preset = getSelectedProgramPreset();
+
+  onValue(ref(db, getSelectedProgramPath()), (snapshot) => {
+    const savedProgram = snapshot.val();
+
+    if (savedProgram) {
+      loadSavedProgram(savedProgram, preset.name);
+      return;
+    }
+
+    loadSavedProgram({ serviceName: preset.name, program: [] }, preset.name);
+
+    if (showEmptyAlert) {
+      alert(`No saved program found for ${preset.name}. This slot is ready for a new program.`);
+    }
+  }, { onlyOnce: true });
 }
 
 function loadSavedProgram(savedProgram, fallbackServiceName) {
