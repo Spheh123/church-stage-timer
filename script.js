@@ -1,16 +1,26 @@
 import { db, ref, set, onValue } from "./firebase.js";
 
 const SESSION_PATH = "sessionState";
-const PROGRAM_PATH = "program";
+const LEGACY_PROGRAM_PATH = "program";
+const PROGRAMS_PATH = "programs";
+const PROGRAM_PRESETS = [
+  { id: "sunday", name: "Sunday Service" },
+  { id: "midweek", name: "Midweek Wednesday Service" },
+  { id: "warfare-night", name: "All Night Warfare Night Prayer" },
+  { id: "special", name: "Special Service" }
+];
+const SELECTED_PROGRAM_KEY = "stageTimerSelectedProgram";
 const CONTROL_PATH = "controlState";
 
 let state = createDefaultSession();
 let controlsLocked = localStorage.getItem("stageTimerLocked") === "true";
 let editingIndex = -1;
+let insertAfterIndex = -1;
 let advancingToNext = false;
 
 const elements = {
   serviceName: document.getElementById("serviceName"),
+  programPreset: document.getElementById("programPreset"),
   title: document.getElementById("title"),
   speaker: document.getElementById("speaker"),
   duration: document.getElementById("duration"),
@@ -31,6 +41,8 @@ const elements = {
   cancelEditBtn: document.getElementById("cancelEditBtn")
 };
 
+populateProgramPresetOptions();
+
 elements.lockToggle?.addEventListener("click", () => {
   setLockedState(!controlsLocked, { broadcast: true });
 });
@@ -39,6 +51,10 @@ elements.serviceName?.addEventListener("input", () => {
   state.serviceName = elements.serviceName.value.trim();
   persistSession();
   refreshUi();
+});
+
+elements.programPreset?.addEventListener("change", () => {
+  localStorage.setItem(SELECTED_PROGRAM_KEY, elements.programPreset.value);
 });
 
 elements.liveMessage?.addEventListener("keydown", (event) => {
@@ -101,6 +117,13 @@ window.addItem = function () {
     const previousItem = program[editingIndex];
     program[editingIndex] = nextItem;
     applyCurrentItemDurationDelta(editingIndex, previousItem, nextItem);
+  } else if (insertAfterIndex >= 0) {
+    const insertIndex = Math.min(insertAfterIndex + 1, program.length);
+    program.splice(insertIndex, 0, nextItem);
+
+    if (insertIndex <= state.currentIndex && program.length > 1) {
+      state.currentIndex += 1;
+    }
   } else {
     program.push(nextItem);
     if (program.length === 1 && !state.isRunning) {
@@ -125,9 +148,23 @@ window.editItem = function (index) {
   if (!item) return;
 
   editingIndex = index;
+  insertAfterIndex = -1;
   elements.title.value = item.title;
   elements.speaker.value = item.speaker;
   elements.duration.value = item.duration;
+  refreshUi();
+};
+
+window.prepareInsertAfter = function (index) {
+  const item = state.program[index];
+  if (!item) return;
+
+  editingIndex = -1;
+  insertAfterIndex = index;
+  elements.title.value = "";
+  elements.speaker.value = "";
+  elements.duration.value = "";
+  elements.title.focus();
   refreshUi();
 };
 
@@ -153,10 +190,11 @@ window.deleteItem = function (index) {
     loadCurrentItemDuration();
   }
 
-  if (editingIndex === index) {
+  if (editingIndex === index || insertAfterIndex === index) {
     clearEditor();
-  } else if (editingIndex > index) {
-    editingIndex -= 1;
+  } else {
+    if (editingIndex > index) editingIndex -= 1;
+    if (insertAfterIndex > index) insertAfterIndex -= 1;
   }
 
   persistSession({ rebaseTimer: wasCurrentItem && state.isRunning });
@@ -213,6 +251,10 @@ window.resetTimer = function () {
   refreshUi();
 };
 
+window.previousItem = function () {
+  moveToProgramItem(state.currentIndex - 1);
+};
+
 window.nextItem = function () {
   advanceToNextItem();
 };
@@ -231,50 +273,107 @@ window.clearMessage = function () {
 };
 
 window.saveProgram = function () {
-  set(ref(db, PROGRAM_PATH), {
+  const preset = getSelectedProgramPreset();
+  state.serviceName = state.serviceName || preset.name;
+
+  set(ref(db, getSelectedProgramPath()), {
     serviceName: state.serviceName,
-    program: state.program
+    program: state.program,
+    savedAt: Date.now()
   });
 
-  alert("Program saved.");
+  persistSession();
+  refreshUi();
+  alert(`${preset.name} saved.`);
 };
 
 window.loadProgram = function () {
-  onValue(ref(db, PROGRAM_PATH), (snapshot) => {
-    const data = snapshot.val();
-    if (!data) {
-      alert("No saved program found.");
+  const preset = getSelectedProgramPreset();
+
+  onValue(ref(db, getSelectedProgramPath()), (snapshot) => {
+    const savedProgram = snapshot.val();
+
+    if (savedProgram) {
+      loadSavedProgram(savedProgram, preset.name);
       return;
     }
 
-    state = normalizeSession({
-      ...state,
-      serviceName: data.serviceName || "",
-      program: data.program || [],
-      currentIndex: 0,
-      remainingMs: data.program?.[0] ? data.program[0].duration * 60 * 1000 : 0,
-      isRunning: false,
-      endTime: null,
-      message: state.message
-    });
+    onValue(ref(db, LEGACY_PROGRAM_PATH), (legacySnapshot) => {
+      const legacyProgram = legacySnapshot.val();
+      const canImportLegacy = legacyProgram && confirm(`No saved program found for ${preset.name}. Load the old saved program into this slot?`);
 
-    clearEditor();
-    syncFormFromState();
-    persistSession();
-    refreshUi();
+      if (canImportLegacy) {
+        loadSavedProgram(legacyProgram, preset.name);
+        return;
+      }
+
+      const startBlank = confirm(`Start a blank ${preset.name} program?`);
+      if (!startBlank) return;
+
+      loadSavedProgram({ serviceName: preset.name, program: [] }, preset.name);
+    }, { onlyOnce: true });
   }, { onlyOnce: true });
 };
 
 window.clearProgram = function () {
-  if (!confirm("Delete the full saved program?")) return;
+  const preset = getSelectedProgramPreset();
+  if (!confirm(`Clear ${preset.name} from the live screen and delete that saved program?`)) return;
 
-  set(ref(db, PROGRAM_PATH), null);
+  set(ref(db, getSelectedProgramPath()), null);
   state = createDefaultSession();
+  state.serviceName = preset.name;
   clearEditor();
   syncFormFromState();
   persistSession();
   refreshUi();
 };
+
+function populateProgramPresetOptions() {
+  if (!elements.programPreset) return;
+
+  const savedSelection = localStorage.getItem(SELECTED_PROGRAM_KEY);
+  elements.programPreset.innerHTML = "";
+
+  PROGRAM_PRESETS.forEach((preset) => {
+    const option = document.createElement("option");
+    option.value = preset.id;
+    option.innerText = preset.name;
+    elements.programPreset.appendChild(option);
+  });
+
+  elements.programPreset.value = PROGRAM_PRESETS.some((preset) => preset.id === savedSelection)
+    ? savedSelection
+    : PROGRAM_PRESETS[0].id;
+}
+
+function getSelectedProgramPreset() {
+  const selectedId = elements.programPreset?.value || PROGRAM_PRESETS[0].id;
+  return PROGRAM_PRESETS.find((preset) => preset.id === selectedId) || PROGRAM_PRESETS[0];
+}
+
+function getSelectedProgramPath() {
+  return `${PROGRAMS_PATH}/${getSelectedProgramPreset().id}`;
+}
+
+function loadSavedProgram(savedProgram, fallbackServiceName) {
+  const program = Array.isArray(savedProgram?.program) ? savedProgram.program : [];
+
+  state = normalizeSession({
+    ...state,
+    serviceName: savedProgram?.serviceName || fallbackServiceName || "",
+    program,
+    currentIndex: 0,
+    remainingMs: program[0] ? program[0].duration * 60 * 1000 : 0,
+    isRunning: false,
+    endTime: null,
+    message: state.message
+  });
+
+  clearEditor();
+  syncFormFromState();
+  persistSession();
+  refreshUi();
+}
 
 function createDefaultSession() {
   return {
@@ -439,6 +538,13 @@ function renderList() {
     editButton.innerText = "Edit";
     editButton.addEventListener("click", () => window.editItem(index));
 
+    const insertButton = document.createElement("button");
+    insertButton.className = "mini-btn";
+    insertButton.type = "button";
+    insertButton.dataset.lockable = "true";
+    insertButton.innerText = "Add After";
+    insertButton.addEventListener("click", () => window.prepareInsertAfter(index));
+
     const deleteButton = document.createElement("button");
     deleteButton.className = "mini-btn mini-btn-danger";
     deleteButton.type = "button";
@@ -446,7 +552,7 @@ function renderList() {
     deleteButton.innerText = "Delete";
     deleteButton.addEventListener("click", () => window.deleteItem(index));
 
-    actions.append(editButton, deleteButton);
+    actions.append(editButton, insertButton, deleteButton);
     li.append(indexBadge, copy, duration, actions);
     elements.programList.appendChild(li);
   });
@@ -458,6 +564,10 @@ function updateEditorState() {
   if (editingIndex >= 0) {
     elements.addItemBtn.innerText = "Save Item Changes";
     elements.cancelEditBtn.style.display = "block";
+  } else if (insertAfterIndex >= 0) {
+    const itemNumber = Math.min(insertAfterIndex + 1, state.program.length);
+    elements.addItemBtn.innerText = `Add After Item ${itemNumber}`;
+    elements.cancelEditBtn.style.display = "block";
   } else {
     elements.addItemBtn.innerText = "Add Program Item";
     elements.cancelEditBtn.style.display = "none";
@@ -466,6 +576,7 @@ function updateEditorState() {
 
 function clearEditor() {
   editingIndex = -1;
+  insertAfterIndex = -1;
   elements.title.value = "";
   elements.speaker.value = "";
   elements.duration.value = "";
@@ -499,10 +610,21 @@ function applyCurrentItemDurationDelta(index, previousItem, nextItem) {
   }
 }
 
+function moveToProgramItem(nextIndex) {
+  if (state.program.length === 0 || nextIndex < 0 || nextIndex >= state.program.length) return;
+
+  const willKeepRunning = state.isRunning;
+  state.currentIndex = nextIndex;
+  state.remainingMs = state.program[nextIndex].duration * 60 * 1000;
+  state.isRunning = willKeepRunning;
+  state.endTime = willKeepRunning ? Date.now() + state.remainingMs : null;
+  persistSession({ rebaseTimer: willKeepRunning });
+  refreshUi();
+}
+
 function advanceToNextItem() {
   if (state.program.length === 0) return;
 
-  const willKeepRunning = state.isRunning;
   const nextIndex = state.currentIndex + 1;
 
   if (nextIndex >= state.program.length) {
@@ -515,12 +637,7 @@ function advanceToNextItem() {
     return;
   }
 
-  state.currentIndex = nextIndex;
-  state.remainingMs = state.program[nextIndex].duration * 60 * 1000;
-  state.isRunning = willKeepRunning;
-  state.endTime = willKeepRunning ? Date.now() + state.remainingMs : null;
-  persistSession({ rebaseTimer: willKeepRunning });
-  refreshUi();
+  moveToProgramItem(nextIndex);
 }
 
 function autoAdvance() {

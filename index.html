@@ -54,6 +54,11 @@
           <input id="serviceName" placeholder="e.g. First Service">
         </label>
 
+        <label class="field">
+          <span>Saved Program</span>
+          <select id="programPreset" data-lockable="true"></select>
+        </label>
+
         <div class="input-grid">
           <label class="field">
             <span>Segment Title</span>
@@ -86,6 +91,7 @@
         <div class="control-grid">
           <button class="big-btn start" type="button" data-lockable="true" onclick="startTimer()">Start</button>
           <button class="big-btn pause" type="button" data-lockable="true" onclick="pauseTimer()">Pause</button>
+          <button class="big-btn back" type="button" data-lockable="true" onclick="previousItem()">Skip Back</button>
           <button class="big-btn skip" type="button" data-lockable="true" onclick="nextItem()">Skip Next</button>
           <button class="big-btn reset" type="button" data-lockable="true" onclick="resetTimer()">Reset</button>
         </div>
