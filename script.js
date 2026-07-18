@@ -89,6 +89,7 @@ onValue(ref(db, SESSION_PATH), (snapshot) => {
 });
 
 setLockedState(controlsLocked, { broadcast: false });
+loadSelectedProgramSlot({ showEmptyAlert: false });
 refreshUi();
 
 setInterval(() => {
@@ -277,6 +278,8 @@ window.saveProgram = function () {
   state.serviceName = state.serviceName || preset.name;
 
   set(ref(db, getSelectedProgramPath()), {
+    presetId: preset.id,
+    presetName: preset.name,
     serviceName: state.serviceName,
     program: state.program,
     savedAt: Date.now()
@@ -338,17 +341,28 @@ function loadSelectedProgramSlot(options = {}) {
   onValue(ref(db, getSelectedProgramPath()), (snapshot) => {
     const savedProgram = snapshot.val();
 
-    if (savedProgram) {
+    if (savedProgram && isSavedProgramForPreset(savedProgram, preset)) {
       loadSavedProgram(savedProgram, preset.name);
       return;
     }
 
-    loadSavedProgram({ serviceName: preset.name, program: [] }, preset.name);
+    loadSavedProgram({ presetId: preset.id, serviceName: preset.name, program: [] }, preset.name);
 
     if (showEmptyAlert) {
       alert(`No saved program found for ${preset.name}. This slot is ready for a new program.`);
     }
   }, { onlyOnce: true });
+}
+
+function isSavedProgramForPreset(savedProgram, preset) {
+  if (!savedProgram) return false;
+  if (savedProgram.presetId) return savedProgram.presetId === preset.id;
+
+  return normalizeName(savedProgram.serviceName) === normalizeName(preset.name);
+}
+
+function normalizeName(value) {
+  return String(value || "").trim().toLowerCase();
 }
 
 function loadSavedProgram(savedProgram, fallbackServiceName) {
