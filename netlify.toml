@@ -35,3 +35,18 @@
   for = "/style.css"
   [headers.values]
     Cache-Control = "no-cache"
+
+[[headers]]
+  for = "/console-model.js"
+  [headers.values]
+    Cache-Control = "no-cache"
+
+[[headers]]
+  for = "/display-settings.js"
+  [headers.values]
+    Cache-Control = "no-cache"
+
+[[headers]]
+  for = "/live-session.js"
+  [headers.values]
+    Cache-Control = "no-cache"

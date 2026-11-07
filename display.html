@@ -15,11 +15,13 @@
     <div class="display-orb orb-b"></div>
 
     <div class="display-head">
+      <img class="church-logo" data-church-logo alt="Church logo" hidden>
       <div class="top-bar" id="serviceDisplay"></div>
       <button id="fullscreenBtn" class="fullscreen-btn" type="button">Fullscreen</button>
     </div>
 
     <div class="display-focus">
+      <div class="display-run-status" id="displayStatus">Ready</div>
       <div class="footer display-segment" id="currentTitle"></div>
 
       <div class="timer-card timer-card-live">
@@ -45,6 +47,9 @@
     import { db, ref, onValue, runTransaction } from "./firebase.js";
 
     import { applyTimerAction, advanceExpired } from "./live-session.js";
+    import { getOverview } from "./console-model.js";
+    import { watchDisplaySettings } from "./display-settings.js";
+    watchDisplaySettings();
     let serverOffset = 0;
     let connected = false;
     let advancing = false;
@@ -179,6 +184,9 @@
       document.getElementById("currentTitle").innerText = currentItem?.title || "Ready";
       document.getElementById("serviceDisplay").innerText = session.serviceName || "Service Not Named";
       document.getElementById("messageBox").innerText = message;
+      const overview = getOverview(session, Date.now() + serverOffset);
+      document.getElementById("displayStatus").innerText = overview.status;
+      if (overview.complete) document.getElementById("currentTitle").innerText = "Service complete";
 
       document.body.classList.toggle("message-visible", Boolean(message.trim()));
     }

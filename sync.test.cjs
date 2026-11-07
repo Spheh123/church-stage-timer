@@ -29,15 +29,16 @@ test('controllers apply pause and added minutes to the current shared value', as
   assert.equal(value.endTime,200000);
   assert.equal(apply(value,'start',50000),undefined);
 });
-test('opening and reconnecting a controller never writes a live session or loads a preset', () => {
+test('opening and reconnecting a controller never writes a live session or loads a preset', async () => {
   const listeners = new Map();
   let writes = 0;
   const nodes = new Map();
-  const node = () => ({ value:'', innerText:'', innerHTML:'', style:{}, dataset:{}, classList:{toggle(){},add(){}}, addEventListener(){}, append(){}, appendChild(){}, focus(){} });
+  const node = () => ({ value:'', innerText:'', innerHTML:'', style:{}, dataset:{}, classList:{toggle(){},add(){}}, setAttribute(){}, addEventListener(){}, append(){}, appendChild(){}, focus(){} });
   const context = vm.createContext({
+    ...await import('./console-model.js'), watchDisplaySettings(){},
     db:{}, ref:(_db,path)=>path, set:()=>{writes++;}, runTransaction:()=>{writes++; return Promise.resolve({committed:true});},
     onValue:(path, callback, options)=>{ if(options?.onlyOnce) callback({val:()=>session()}); else listeners.set(path,callback); },
-    localStorage:{getItem:()=>null,setItem(){}}, window:{}, setInterval(){}, console, Date,
+    localStorage:{getItem:()=>null,setItem(){}}, window:{matchMedia:()=>({matches:true})}, setInterval(){}, console, Date,
     alert(){}, confirm:()=>true,
     document:{getElementById:id=>{if(!nodes.has(id)) nodes.set(id,node()); return nodes.get(id);}, createElement:node, querySelectorAll:()=>[],body:{classList:{toggle(){}}}}
   });
@@ -60,6 +61,7 @@ test('display advances the program without any controller phone', async () => {
   const nodes = new Map();
   class Clock extends Date { static now() { return now; } }
   const context = vm.createContext({ ...operations, Date:Clock, console,
+    ...await import('./console-model.js'), watchDisplaySettings(){},
     db:{}, ref:(_db,path)=>path,
     onValue:(path, callback)=>listeners.set(path,callback),
     runTransaction:(_ref, update)=>{ const next=update(shared); if(next) shared=next; return Promise.resolve(); },

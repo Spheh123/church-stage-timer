@@ -28,6 +28,11 @@
         </button>
       </section>
 
+      <div class="console-toolbar">
+        <span id="connectionStatus" class="connection-status" role="status" aria-live="polite">Connecting…</span>
+        <button id="viewToggle" class="mini-btn" type="button" aria-pressed="false">Live view</button>
+      </div>
+
       <section class="status-grid">
         <article class="status-card">
           <span class="status-label">Program Items</span>
@@ -43,15 +48,72 @@
         </article>
       </section>
 
-      <section class="panel-card">
+
+
+      <section class="panel-card live-panel">
+        <div class="live-readout">
+          <div class="live-readout-heading"><span class="eyebrow">On stage</span><span id="runStatus" class="run-status">Ready</span></div>
+          <h2 id="liveTitle">Ready</h2>
+          <p id="liveSpeaker" class="help-text">Awaiting Speaker</p>
+          <div id="liveTimer" class="live-timer">00:00</div>
+          <div class="segment-progress" aria-hidden="true"><span id="segmentProgress"></span></div>
+          <div class="next-summary"><span class="status-label">Up next</span><strong id="nextSegment">Add a program to begin</strong><span id="nextSpeaker" class="help-text"></span></div>
+          <div class="finish-grid"><div><span class="status-label">Segment ends</span><strong id="segmentEnd">—</strong></div><div><span class="status-label">Service ends</span><strong id="serviceEnd">—</strong></div></div>
+          <p id="finishHint" class="help-text">Finish times update as you adjust the timer.</p>
+        </div>
         <div class="section-heading">
-          <h2>Service Setup</h2>
-          <p>Build the running order and push it live in seconds.</p>
+          <h2>Live Controls</h2>
+          <p>Large touch targets for fast and deliberate operation.</p>
+        </div>
+
+        <div class="control-grid">
+          <button class="big-btn start" type="button" data-lockable="true" onclick="startTimer()">Start</button>
+          <button class="big-btn pause" type="button" data-lockable="true" onclick="pauseTimer()">Pause</button>
+          <button class="big-btn back" type="button" data-lockable="true" onclick="previousItem()">Skip Back</button>
+          <button class="big-btn skip" type="button" data-lockable="true" onclick="nextItem()">Skip Next</button>
+          <button class="big-btn reset" type="button" data-lockable="true" onclick="resetTimer()">Reset</button>
+        </div>
+
+        <div class="section-heading section-heading-compact">
+          <h2>Current Speaker Time</h2>
+          <p>Add or remove time instantly without stopping the live event.</p>
+        </div>
+
+        <div class="time-adjust-grid">
+          <button class="action-btn" type="button" data-lockable="true" onclick="adjustCurrentTime(-1)">-1 Minute</button>
+          <button class="action-btn" type="button" data-lockable="true" onclick="adjustCurrentTime(1)">+1 Minute</button>
+          <button class="action-btn action-btn-secondary" type="button" data-lockable="true" onclick="adjustCurrentTime(5)">+5 Minutes</button>
+        </div>
+
+        <div class="secondary-actions">
+          <button class="action-btn" type="button" onclick="window.open('display.html', '_blank')">Open Display Screen</button>
+        </div>
+      </section>
+
+      <section class="panel-card message-panel">
+        <div class="section-heading">
+          <h2>Speaker Message</h2>
+          <p>Send a discreet live prompt to the stage display.</p>
         </div>
 
         <label class="field">
+          <span>Live Message</span>
+          <input id="liveMessage" placeholder="Type a message for the speaker">
+        </label>
+
+        <div class="message-actions">
+          <button class="action-btn" type="button" data-lockable="true" onclick="showMessage()">Display Message</button>
+          <button class="action-btn action-btn-secondary" type="button" data-lockable="true" onclick="clearMessage()">Clear Message</button>
+        </div>
+      </section>
+
+      <details class="panel-card setup-panel" id="setupPanel">
+        <summary>Service setup &amp; running order</summary>
+        <p class="help-text">Prepare your service here. Loading a saved program replaces the live running order.</p>
+
+        <label class="field">
           <span>Service Name</span>
-          <input id="serviceName" placeholder="e.g. First Service">
+          <input id="serviceName" data-lockable="true" placeholder="e.g. First Service">
         </label>
 
         <label class="field">
@@ -80,57 +142,28 @@
         </div>
 
         <ul id="programList" class="program-list"></ul>
-      </section>
-
-      <section class="panel-card">
-        <div class="section-heading">
-          <h2>Live Controls</h2>
-          <p>Large touch targets for fast and deliberate operation.</p>
-        </div>
-
-        <div class="control-grid">
-          <button class="big-btn start" type="button" data-lockable="true" onclick="startTimer()">Start</button>
-          <button class="big-btn pause" type="button" data-lockable="true" onclick="pauseTimer()">Pause</button>
-          <button class="big-btn back" type="button" data-lockable="true" onclick="previousItem()">Skip Back</button>
-          <button class="big-btn skip" type="button" data-lockable="true" onclick="nextItem()">Skip Next</button>
-          <button class="big-btn reset" type="button" data-lockable="true" onclick="resetTimer()">Reset</button>
-        </div>
-
-        <div class="section-heading section-heading-compact">
-          <h2>Current Speaker Time</h2>
-          <p>Add or remove time instantly without stopping the live event.</p>
-        </div>
-
-        <div class="time-adjust-grid">
-          <button class="action-btn" type="button" data-lockable="true" onclick="adjustCurrentTime(-1)">-1 Minute</button>
-          <button class="action-btn" type="button" data-lockable="true" onclick="adjustCurrentTime(1)">+1 Minute</button>
-          <button class="action-btn action-btn-secondary" type="button" data-lockable="true" onclick="adjustCurrentTime(5)">+5 Minutes</button>
-        </div>
-
         <div class="secondary-actions">
           <button class="action-btn" type="button" data-lockable="true" onclick="saveProgram()">Save Program</button>
           <button class="action-btn" type="button" data-lockable="true" onclick="loadProgram()">Load Program</button>
           <button class="action-btn action-btn-danger" type="button" data-lockable="true" onclick="clearProgram()">Clear Selected Service</button>
-          <button class="action-btn" type="button" onclick="window.open('display.html', '_blank')">Open Display Screen</button>
         </div>
-      </section>
-
-      <section class="panel-card">
-        <div class="section-heading">
-          <h2>Speaker Message</h2>
-          <p>Send a discreet live prompt to the stage display.</p>
+        <div class="backup-actions">
+          <button class="action-btn" type="button" onclick="exportProgram()">Download program backup</button>
+          <button class="action-btn" type="button" data-lockable="true" onclick="document.getElementById('backupFile').click()">Import program backup</button>
+          <input id="backupFile" type="file" accept="application/json,.json" hidden>
         </div>
+        <p class="help-text">Backups contain the current running order. Import prepares it from the beginning; use Save Program to keep it in a service slot.</p>
+      </details>
 
-        <label class="field">
-          <span>Live Message</span>
-          <input id="liveMessage" placeholder="Type a message for the speaker">
-        </label>
-
-        <div class="message-actions">
-          <button class="action-btn" type="button" data-lockable="true" onclick="showMessage()">Display Message</button>
-          <button class="action-btn action-btn-secondary" type="button" data-lockable="true" onclick="clearMessage()">Clear Message</button>
-        </div>
-      </section>
+      <details class="panel-card settings-panel">
+        <summary>Stage display settings</summary>
+        <p class="help-text">Changes appear on the display screen and preview without interrupting the timer.</p>
+        <label class="field"><span>Theme</span><select id="displayTheme" data-lockable="true"><option value="classic">Classic midnight &amp; gold</option><option value="contrast">High contrast black</option></select></label>
+        <label class="field"><span>Countdown size</span><select id="displaySize" data-lockable="true"><option value="standard">Standard</option><option value="large">Large</option></select></label>
+        <label class="field"><span>Church logo (PNG, JPG or WebP; up to 200 KB)</span><input id="logoFile" type="file" accept="image/png,image/jpeg,image/webp" data-lockable="true"></label>
+        <button id="removeLogo" class="action-btn" type="button" data-lockable="true">Remove logo</button>
+        <span id="settingsStatus" class="help-text" role="status" aria-live="polite"></span>
+      </details>
 
       <div class="signature signature-panel">
         Crafted by <span>Sphelele Chavula</span>
@@ -141,6 +174,7 @@
       <div class="stage-backdrop"></div>
       <div class="display">
         <div class="display-chrome">
+          <img class="church-logo" data-church-logo alt="Church logo" hidden>
           <div class="top-bar" id="serviceDisplay"></div>
           <div class="preview-badge">Audience Display Preview</div>
         </div>

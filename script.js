@@ -1,4 +1,6 @@
 import { applyTimerAction } from "./live-session.js";
+import { getOverview, readProgramBackup } from "./console-model.js";
+import { watchDisplaySettings } from "./display-settings.js";
 import { db, ref, set, onValue, runTransaction } from "./firebase.js";
 
 const SESSION_PATH = "sessionState";
@@ -21,6 +23,8 @@ let sessionReady = false;
 let connected = false;
 let serverOffset = 0;
 let syncedRevision = 0;
+let hasConnected = false;
+let renderedProgramKey = '';
 
 const elements = {
   serviceName: document.getElementById("serviceName"),
@@ -51,7 +55,7 @@ elements.lockToggle?.addEventListener("click", () => {
   setLockedState(!controlsLocked, { broadcast: true });
 });
 
-elements.serviceName?.addEventListener("input", () => {
+elements.serviceName?.addEventListener("change", () => {
   state.serviceName = elements.serviceName.value.trim();
   persistSession();
   refreshUi();
@@ -59,7 +63,6 @@ elements.serviceName?.addEventListener("input", () => {
 
 elements.programPreset?.addEventListener("change", () => {
   localStorage.setItem(SELECTED_PROGRAM_KEY, elements.programPreset.value);
-  loadSelectedProgramSlot({ showEmptyAlert: false });
 });
 
 elements.liveMessage?.addEventListener("keydown", (event) => {
@@ -97,6 +100,7 @@ refreshUi();
 onValue(ref(db, ".info/serverTimeOffset"), snapshot => { serverOffset = Number(snapshot.val()) || 0; });
 onValue(ref(db, ".info/connected"), snapshot => {
   connected = snapshot.val() === true;
+  if (connected) hasConnected = true;
   sessionReady = false;
   applyLockStateToButtons();
   if (connected) onValue(ref(db, SESSION_PATH), snapshot => {
@@ -124,7 +128,7 @@ window.addItem = function () {
   const speaker = elements.speaker.value.trim();
   const duration = parseInt(elements.duration.value, 10);
 
-  if (!title || !duration) {
+  if (!title || !Number.isFinite(duration) || duration <= 0 || duration > 1440) {
     alert("Add at least a segment title and duration.");
     return;
   }
@@ -239,37 +243,40 @@ window.clearMessage = function () {
   refreshUi();
 };
 
-window.saveProgram = function () {
+window.saveProgram = async function () {
+  if (!connected || !sessionReady || controlsLocked) return;
   const preset = getSelectedProgramPreset();
-  state.serviceName = state.serviceName || preset.name;
 
-  set(ref(db, getSelectedProgramPath()), {
-    presetId: preset.id,
-    presetName: preset.name,
-    serviceName: state.serviceName,
-    program: state.program,
-    savedAt: Date.now()
-  });
-
-  persistSession();
-  refreshUi();
-  alert(`${preset.name} saved.`);
+  try {
+    await set(ref(db, getSelectedProgramPath()), {
+      presetId: preset.id,
+      presetName: preset.name,
+      serviceName: state.serviceName || preset.name,
+      program: state.program,
+      savedAt: Date.now()
+    });
+    alert(`${preset.name} saved.`);
+  } catch (error) { reportSyncError(error); }
 };
 
 window.loadProgram = function () {
   loadSelectedProgramSlot({ showEmptyAlert: true });
 };
 
-window.clearProgram = function () {
+window.clearProgram = async function () {
+  if (!connected || !sessionReady || controlsLocked) return;
   const preset = getSelectedProgramPreset();
+  const path = getSelectedProgramPath();
   if (!confirm(`Clear ${preset.name} from the live screen and delete that saved program?`)) return;
 
-  set(ref(db, getSelectedProgramPath()), null);
   state = createDefaultSession();
   state.serviceName = preset.name;
   clearEditor();
   syncFormFromState();
-  persistSession();
+  const committed = await persistSession();
+  if (committed) {
+    try { await set(ref(db, path), null); } catch (error) { reportSyncError(error); }
+  }
   refreshUi();
 };
 
@@ -301,10 +308,16 @@ function getSelectedProgramPath() {
 }
 
 function loadSelectedProgramSlot(options = {}) {
+  if (!connected || !sessionReady || controlsLocked) return;
   const { showEmptyAlert = false } = options;
   const preset = getSelectedProgramPreset();
+  const expectedRevision = syncedRevision;
 
   onValue(ref(db, getSelectedProgramPath()), (snapshot) => {
+    if (!connected || !sessionReady || controlsLocked || expectedRevision !== syncedRevision) {
+      alert("The live session changed while loading. Please press Load Program again.");
+      return;
+    }
     const savedProgram = snapshot.val();
 
     if (savedProgram && isSavedProgramForPreset(savedProgram, preset)) {
@@ -332,6 +345,8 @@ function normalizeName(value) {
 }
 
 function loadSavedProgram(savedProgram, fallbackServiceName) {
+  if (!connected || !sessionReady || controlsLocked) return;
+  if (state.program.length && !confirm("Replace the live running order and return to the beginning? This will stop the current timer.")) return;
   const program = Array.isArray(savedProgram?.program) ? savedProgram.program : [];
 
   state = normalizeSession({
@@ -429,7 +444,7 @@ function persistSession(options = {}) {
   state.updatedAt = updatedAt;
 
   if (state.isRunning) {
-    state.endTime = rebaseTimer ? Date.now() + remainingMs : state.endTime;
+    state.endTime = rebaseTimer ? Date.now() + serverOffset + remainingMs : state.endTime;
   } else {
     state.endTime = null;
   }
@@ -437,7 +452,7 @@ function persistSession(options = {}) {
   if (!connected || !sessionReady) return;
   const expectedRevision = syncedRevision;
   const proposed = { ...state, updatedAt: Math.max(Date.now() + serverOffset, expectedRevision + 1) };
-  runTransaction(ref(db, SESSION_PATH), current => {
+  return runTransaction(ref(db, SESSION_PATH), current => {
     if ((current?.updatedAt || 0) !== expectedRevision) return;
     return proposed;
   }, { applyLocally: false }).then(result => {
@@ -446,6 +461,7 @@ function persistSession(options = {}) {
     syncFormFromState();
     refreshUi();
     if (!result.committed) alert("The live session changed on another device. Please try your edit again.");
+    return result.committed;
   }).catch(reportSyncError);
 }
 
@@ -461,15 +477,19 @@ function refreshUi() {
   elements.messageBox.innerText = state.message || "";
   elements.timer.innerText = formatted;
   elements.timer.className = `timer timer-preview ${color}`;
-  elements.serviceName.value = state.serviceName;
+  if (document.activeElement !== elements.serviceName) elements.serviceName.value = state.serviceName;
 
   document.body.classList.toggle("message-visible", Boolean(state.message.trim()));
 
   renderList();
   updateEditorState();
+  renderLiveOverview();
 }
 
 function renderList() {
+  const programKey = JSON.stringify([state.program, state.currentIndex]);
+  if (programKey === renderedProgramKey) { applyLockStateToButtons(); return; }
+  renderedProgramKey = programKey;
   elements.programList.innerHTML = "";
 
   if (state.program.length === 0) {
@@ -477,6 +497,7 @@ function renderList() {
     emptyState.className = "program-empty";
     emptyState.innerText = "No segments yet. Add your first item to build the service flow.";
     elements.programList.appendChild(emptyState);
+    applyLockStateToButtons();
     return;
   }
 
@@ -562,8 +583,8 @@ function clearEditor() {
 }
 
 function syncFormFromState() {
-  elements.serviceName.value = state.serviceName;
-  elements.liveMessage.value = state.message;
+  if (document.activeElement !== elements.serviceName) elements.serviceName.value = state.serviceName;
+  if (document.activeElement !== elements.liveMessage) elements.liveMessage.value = state.message;
 }
 
 function loadCurrentItemDuration() {
@@ -571,7 +592,7 @@ function loadCurrentItemDuration() {
   state.remainingMs = current ? current.duration * 60 * 1000 : 0;
 
   if (state.isRunning) {
-    state.endTime = Date.now() + state.remainingMs;
+    state.endTime = Date.now() + serverOffset + state.remainingMs;
   } else {
     state.endTime = null;
   }
@@ -585,7 +606,7 @@ function applyCurrentItemDurationDelta(index, previousItem, nextItem) {
   state.remainingMs = nextRemaining;
 
   if (state.isRunning) {
-    state.endTime = Date.now() + nextRemaining;
+    state.endTime = Date.now() + serverOffset + nextRemaining;
   }
 }
 
@@ -625,6 +646,10 @@ function applyLockStateToButtons() {
   document.querySelectorAll("[data-lockable='true']").forEach((button) => {
     button.disabled = controlsLocked || !connected || !sessionReady;
   });
+  if (elements.lockToggle) elements.lockToggle.disabled = !connected || !sessionReady;
+  const status = document.getElementById("connectionStatus");
+  status.innerText = connected ? (sessionReady ? "Connected" : "Syncing…") : (hasConnected ? "Reconnecting… · controls offline" : "Connecting… · controls offline");
+  status.className = `connection-status ${connected && sessionReady ? 'is-connected' : 'is-offline'}`;
 }
 
 function setLockedState(locked, options = {}) {
@@ -666,7 +691,17 @@ function timerAction(action, amount = 0) {
 }
 window.startTimer = () => timerAction("start");
 window.pauseTimer = () => timerAction("pause");
-window.resetTimer = () => timerAction("reset");
+window.resetTimer = () => {
+  if (!connected || !sessionReady || controlsLocked) return;
+  if (state.program.length && !confirm("Reset the live service to the beginning? This will stop the current timer for everyone.")) return;
+  const expectedRevision = syncedRevision;
+  return runTransaction(ref(db, SESSION_PATH), current => {
+    if ((current?.updatedAt || 0) !== expectedRevision) return;
+    return applyTimerAction(current, "reset", Date.now() + serverOffset);
+  }, { applyLocally: false }).then(result => {
+    if (!result.committed) alert("The live session changed. Check the timer before resetting again.");
+  }).catch(reportSyncError);
+};
 window.adjustCurrentTime = minutes => timerAction("adjust", minutes);
 window.previousItem = () => timerAction("previous");
 window.nextItem = () => timerAction("next");
@@ -675,3 +710,81 @@ function autoAdvance() {
   advancingToNext = true;
   timerAction("advance").finally(() => { advancingToNext = false; });
 }
+
+function renderLiveOverview() {
+  const overview = getOverview(state, Date.now() + serverOffset);
+  const write = (id, text) => { document.getElementById(id).innerText = text; };
+  write('runStatus', overview.status);
+  document.getElementById('runStatus').className = `run-status ${state.isRunning ? 'is-running' : ''}`;
+  write('liveTitle', overview.current?.title || (overview.complete ? 'Service complete' : 'Ready'));
+  write('liveSpeaker', overview.current?.speaker || 'Awaiting Speaker');
+  const seconds = Math.ceil(overview.remaining / 1000);
+  write('liveTimer', `${String(Math.floor(seconds / 60)).padStart(2, '0')}:${String(seconds % 60).padStart(2, '0')}`);
+  document.getElementById('liveTimer').className = `live-timer ${getTimerPresentation().color}`;
+  document.getElementById('segmentProgress').style.width = `${overview.progress}%`;
+  write('nextSegment', overview.next?.title || (overview.complete ? 'Thank you — service complete' : overview.current ? 'Final segment' : 'Add a program to begin'));
+  write('nextSpeaker', overview.next ? [overview.next.speaker, `${overview.next.duration} min`].filter(Boolean).join(' · ') : '');
+  const time = value => value == null ? '—' : new Date(value).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit', hour12:false});
+  write('segmentEnd', time(overview.segmentEnd));
+  write('serviceEnd', time(overview.serviceEnd));
+  write('finishHint', state.isRunning ? 'Estimated finish times · update with time adjustments' : overview.complete ? 'All segments have finished.' : 'Finish times appear when the timer is running.');
+}
+
+const viewToggle = document.getElementById('viewToggle');
+function setLiveView(live) {
+  document.body.classList.toggle('live-mode', live);
+  viewToggle.innerText = live ? 'Setup view' : 'Live view';
+  viewToggle.setAttribute('aria-pressed', String(live));
+  document.getElementById('setupPanel').open = !live;
+  localStorage.setItem('stageTimerLiveView', String(live));
+}
+const savedLiveView = localStorage.getItem('stageTimerLiveView');
+setLiveView(savedLiveView == null ? window.matchMedia('(max-width: 1100px)').matches : savedLiveView === 'true');
+viewToggle.addEventListener('click', () => setLiveView(!document.body.classList.contains('live-mode')));
+
+window.exportProgram = function () {
+  if (!state.program.length) { alert('Add or load a program before downloading a backup.'); return; }
+  const data = { type:'stage-timer-program', version:1, serviceName:state.serviceName, program:state.program, exportedAt:new Date().toISOString() };
+  const url = URL.createObjectURL(new Blob([JSON.stringify(data, null, 2)], {type:'application/json'}));
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = `${(state.serviceName || 'church-service').replace(/[^a-z0-9]+/gi, '-').slice(0,80)}-backup.json`;
+  link.click();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+};
+document.getElementById('backupFile').addEventListener('change', async event => {
+  const file = event.target.files?.[0];
+  event.target.value = '';
+  if (!file) return;
+  try {
+    if (file.size > 1024 * 1024) throw new Error('Choose a program backup smaller than 1 MB.');
+    const backup = readProgramBackup(await file.text());
+    loadSavedProgram(backup, 'Imported Service');
+  } catch (error) { alert(error.message || 'Could not read this program backup.'); }
+});
+
+watchDisplaySettings();
+async function updateDisplaySetting(patch) {
+  if (!connected || !sessionReady || controlsLocked) return;
+  const status = document.getElementById('settingsStatus');
+  status.innerText = 'Saving display settings…';
+  try {
+    await runTransaction(ref(db, 'displaySettings'), current => ({...(current || {}), ...patch}), {applyLocally:false});
+    status.innerText = 'Display settings saved.';
+  } catch (error) { status.innerText = 'Could not save. Check your connection and try again.'; console.error(error); }
+}
+document.getElementById('displayTheme').addEventListener('change', event => updateDisplaySetting({theme:event.target.value}));
+document.getElementById('displaySize').addEventListener('change', event => updateDisplaySetting({size:event.target.value}));
+document.getElementById('removeLogo').addEventListener('click', () => updateDisplaySetting({logo:''}));
+document.getElementById('logoFile').addEventListener('change', async event => {
+  const file = event.target.files?.[0];
+  event.target.value = '';
+  if (!file) return;
+  if (!['image/png','image/jpeg','image/webp'].includes(file.type) || file.size > 200 * 1024) {
+    alert('Choose a PNG, JPG or WebP logo up to 200 KB.'); return;
+  }
+  const reader = new FileReader();
+  reader.onload = () => updateDisplaySetting({logo:reader.result});
+  reader.onerror = () => alert('Could not read the logo. Please try another image.');
+  reader.readAsDataURL(file);
+});
