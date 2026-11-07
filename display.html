@@ -42,11 +42,19 @@
   </div>
 
   <script type="module">
-    import { db, ref, onValue } from "./firebase.js";
+    import { db, ref, onValue, runTransaction } from "./firebase.js";
+
+    import { applyTimerAction, advanceExpired } from "./live-session.js";
+    let serverOffset = 0;
+    let connected = false;
+    let advancing = false;
+    onValue(ref(db, ".info/serverTimeOffset"), snapshot => { serverOffset = Number(snapshot.val()) || 0; });
+    onValue(ref(db, ".info/connected"), snapshot => { connected = snapshot.val() === true; });
 
     const SESSION_PATH = "sessionState";
 
     let session = createDefaultSession();
+    let receivedSession = session;
 
     onValue(ref(db, SESSION_PATH), (snapshot) => {
       const data = snapshot.val();
@@ -54,17 +62,20 @@
 
       const incomingSession = normalizeSession(data);
 
-      if (incomingSession.updatedAt && incomingSession.updatedAt < session.updatedAt) {
-        return;
-      }
-
       session = incomingSession;
+      receivedSession = incomingSession;
       renderDisplay();
     });
 
     setInterval(() => {
       renderClock();
       renderDisplay();
+      if (connected && !advancing && receivedSession.isRunning && receivedSession.endTime <= Date.now() + serverOffset) {
+        advancing = true;
+        runTransaction(ref(db, SESSION_PATH), current => applyTimerAction(current, "advance", Date.now() + serverOffset), { applyLocally: false })
+          .catch(error => console.error("Could not advance live timer", error))
+          .finally(() => { advancing = false; });
+      }
     }, 1000);
 
     renderClock();
@@ -121,7 +132,7 @@
 
     function getRemainingMs(currentSession = session) {
       if (currentSession.isRunning && currentSession.endTime) {
-        return Math.max(0, currentSession.endTime - Date.now());
+        return Math.max(0, currentSession.endTime - (Date.now() + serverOffset));
       }
 
       return Math.max(currentSession.remainingMs || 0, 0);
@@ -155,6 +166,7 @@
     }
 
     function renderDisplay() {
+      session = advanceExpired(session, Date.now() + serverOffset);
       const countdown = getCountdownView();
       const currentItem = getCurrentItem();
       const timerEl = document.getElementById("timer");

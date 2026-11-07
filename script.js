@@ -1,4 +1,5 @@
-import { db, ref, set, onValue } from "./firebase.js";
+import { applyTimerAction } from "./live-session.js";
+import { db, ref, set, onValue, runTransaction } from "./firebase.js";
 
 const SESSION_PATH = "sessionState";
 const PROGRAMS_PATH = "programs";
@@ -16,6 +17,10 @@ let controlsLocked = localStorage.getItem("stageTimerLocked") === "true";
 let editingIndex = -1;
 let insertAfterIndex = -1;
 let advancingToNext = false;
+let sessionReady = false;
+let connected = false;
+let serverOffset = 0;
+let syncedRevision = 0;
 
 const elements = {
   serviceName: document.getElementById("serviceName"),
@@ -74,23 +79,36 @@ onValue(ref(db, CONTROL_PATH), (snapshot) => {
 
 onValue(ref(db, SESSION_PATH), (snapshot) => {
   const data = snapshot.val();
-  if (!data) return;
+  sessionReady = true;
+  syncedRevision = data?.updatedAt || 0;
+  if (!data) { applyLockStateToButtons(); return; }
 
   const incomingState = normalizeSession(data);
 
-  if (incomingState.updatedAt && incomingState.updatedAt < state.updatedAt) {
-    return;
-  }
-
   state = incomingState;
+  applyLockStateToButtons();
   state.remainingMs = getRemainingMs(state);
   syncFormFromState();
   refreshUi();
 });
 
 setLockedState(controlsLocked, { broadcast: false });
-loadSelectedProgramSlot({ showEmptyAlert: false });
 refreshUi();
+onValue(ref(db, ".info/serverTimeOffset"), snapshot => { serverOffset = Number(snapshot.val()) || 0; });
+onValue(ref(db, ".info/connected"), snapshot => {
+  connected = snapshot.val() === true;
+  sessionReady = false;
+  applyLockStateToButtons();
+  if (connected) onValue(ref(db, SESSION_PATH), snapshot => {
+    const data = snapshot.val();
+    state = data ? normalizeSession(data) : createDefaultSession();
+    syncedRevision = state.updatedAt;
+    sessionReady = true;
+    syncFormFromState();
+    refreshUi();
+    applyLockStateToButtons();
+  }, { onlyOnce: true });
+});
 
 setInterval(() => {
   if (state.isRunning && getRemainingMs(state) <= 0) {
@@ -202,63 +220,11 @@ window.deleteItem = function (index) {
   refreshUi();
 };
 
-window.adjustCurrentTime = function (minutesDelta) {
-  const currentItem = getCurrentItem();
-  if (!currentItem) return;
 
-  const nextRemaining = Math.max(0, getRemainingMs(state) + minutesDelta * 60 * 1000);
-  state.remainingMs = nextRemaining;
 
-  if (state.isRunning) {
-    state.endTime = Date.now() + nextRemaining;
-  }
 
-  persistSession({ rebaseTimer: state.isRunning });
-  refreshUi();
-};
 
-window.startTimer = function () {
-  if (state.program.length === 0) return;
 
-  if (state.currentIndex >= state.program.length) {
-    state.currentIndex = 0;
-    loadCurrentItemDuration();
-  }
-
-  if (getRemainingMs(state) <= 0) {
-    loadCurrentItemDuration();
-  }
-
-  state.isRunning = true;
-  state.endTime = Date.now() + getRemainingMs(state);
-  persistSession({ rebaseTimer: true });
-  refreshUi();
-};
-
-window.pauseTimer = function () {
-  state.remainingMs = getRemainingMs(state);
-  state.isRunning = false;
-  state.endTime = null;
-  persistSession();
-  refreshUi();
-};
-
-window.resetTimer = function () {
-  state.currentIndex = 0;
-  state.isRunning = false;
-  state.endTime = null;
-  state.remainingMs = state.program[0] ? state.program[0].duration * 60 * 1000 : 0;
-  persistSession();
-  refreshUi();
-};
-
-window.previousItem = function () {
-  moveToProgramItem(state.currentIndex - 1);
-};
-
-window.nextItem = function () {
-  advanceToNextItem();
-};
 
 window.showMessage = function () {
   state.message = elements.liveMessage.value.trim();
@@ -430,7 +396,7 @@ function getCurrentItem(session = state) {
 
 function getRemainingMs(session = state) {
   if (session.isRunning && session.endTime) {
-    return Math.max(0, session.endTime - Date.now());
+    return Math.max(0, session.endTime - (Date.now() + serverOffset));
   }
 
   return Math.max(session.remainingMs || 0, 0);
@@ -468,16 +434,19 @@ function persistSession(options = {}) {
     state.endTime = null;
   }
 
-  set(ref(db, SESSION_PATH), {
-    serviceName: state.serviceName,
-    program: state.program,
-    currentIndex: state.currentIndex,
-    remainingMs,
-    isRunning: state.isRunning,
-    endTime: state.endTime,
-    message: state.message,
-    updatedAt
-  });
+  if (!connected || !sessionReady) return;
+  const expectedRevision = syncedRevision;
+  const proposed = { ...state, updatedAt: Math.max(Date.now() + serverOffset, expectedRevision + 1) };
+  runTransaction(ref(db, SESSION_PATH), current => {
+    if ((current?.updatedAt || 0) !== expectedRevision) return;
+    return proposed;
+  }, { applyLocally: false }).then(result => {
+    state = normalizeSession(result.snapshot.val() || createDefaultSession());
+    syncedRevision = state.updatedAt;
+    syncFormFromState();
+    refreshUi();
+    if (!result.committed) alert("The live session changed on another device. Please try your edit again.");
+  }).catch(reportSyncError);
 }
 
 function refreshUi() {
@@ -650,16 +619,11 @@ function advanceToNextItem() {
   moveToProgramItem(nextIndex);
 }
 
-function autoAdvance() {
-  if (advancingToNext) return;
-  advancingToNext = true;
-  advanceToNextItem();
-  advancingToNext = false;
-}
+
 
 function applyLockStateToButtons() {
   document.querySelectorAll("[data-lockable='true']").forEach((button) => {
-    button.disabled = controlsLocked;
+    button.disabled = controlsLocked || !connected || !sessionReady;
   });
 }
 
@@ -686,4 +650,28 @@ function setLockedState(locked, options = {}) {
   if (broadcast) {
     set(ref(db, CONTROL_PATH), { locked });
   }
+}
+
+function reportSyncError(error) {
+  console.error("Timer synchronization failed", error);
+  alert("Could not update the live timer. Check your connection and try again.");
+}
+
+function timerAction(action, amount = 0) {
+  if (!connected || !sessionReady || (controlsLocked && action !== "advance")) return Promise.resolve();
+  return runTransaction(ref(db, SESSION_PATH), current =>
+    applyTimerAction(current, action, Date.now() + serverOffset, amount),
+    { applyLocally: false }
+  ).catch(reportSyncError);
+}
+window.startTimer = () => timerAction("start");
+window.pauseTimer = () => timerAction("pause");
+window.resetTimer = () => timerAction("reset");
+window.adjustCurrentTime = minutes => timerAction("adjust", minutes);
+window.previousItem = () => timerAction("previous");
+window.nextItem = () => timerAction("next");
+function autoAdvance() {
+  if (advancingToNext) return;
+  advancingToNext = true;
+  timerAction("advance").finally(() => { advancingToNext = false; });
 }
