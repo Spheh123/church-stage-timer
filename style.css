@@ -229,10 +229,19 @@ select {
 
 select {
   appearance: none;
+  color: #000;
+  background-color: #fff;
+  color-scheme: light;
+  padding-right: 40px;
   background-image: linear-gradient(45deg, transparent 50%, var(--muted) 50%), linear-gradient(135deg, var(--muted) 50%, transparent 50%);
   background-position: calc(100% - 18px) 50%, calc(100% - 12px) 50%;
   background-size: 6px 6px, 6px 6px;
   background-repeat: no-repeat;
+}
+
+select option {
+  color: #000;
+  background-color: #fff;
 }
 
 input::placeholder {
