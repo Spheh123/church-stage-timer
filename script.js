@@ -739,7 +739,7 @@ function setLiveView(live) {
   localStorage.setItem('stageTimerLiveView', String(live));
 }
 const savedLiveView = localStorage.getItem('stageTimerLiveView');
-setLiveView(savedLiveView == null ? window.matchMedia('(max-width: 1100px)').matches : savedLiveView === 'true');
+setLiveView(savedLiveView == null ? window.matchMedia('(max-width: 900px)').matches : savedLiveView === 'true');
 viewToggle.addEventListener('click', () => setLiveView(!document.body.classList.contains('live-mode')));
 
 window.exportProgram = function () {
