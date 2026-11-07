@@ -6,12 +6,14 @@
   <title>Stage Timer Display</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <meta name="theme-color" content="#171b1a">
-  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;500;600&family=Manrope:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;700&family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="style.css">
 </head>
 <body class="display-only">
   <div class="display-full">
+    <div class="display-orb orb-a"></div>
+    <div class="display-orb orb-b"></div>
+
     <div class="display-head">
       <img class="church-logo" data-church-logo alt="Church logo" hidden>
       <div class="top-bar" id="serviceDisplay"></div>
@@ -25,11 +27,11 @@
       <div class="timer-card timer-card-live">
         <div class="dual-timer">
           <div class="time-panel clock-panel">
-            <div class="timer-label">Local time</div>
+            <div class="timer-label">Real Time</div>
             <div class="clock-time" id="clockTime">00:00</div>
           </div>
           <div class="time-panel countdown-panel">
-            <div class="timer-label">Time remaining</div>
+            <div class="timer-label">Countdown</div>
             <div class="timer" id="timer">00:00</div>
           </div>
         </div>
